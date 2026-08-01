@@ -1,0 +1,100 @@
+[
+  {"type": "event", "name": "PositionRegistered", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "tokenId", "type": "uint256"},
+    {"indexed": false, "name": "feeWallet", "type": "address"},
+    {"indexed": false, "name": "pool", "type": "address"},
+    {"indexed": false, "name": "positionManager", "type": "address"}
+  ]},
+  {"type": "event", "name": "FeesClaimed", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "feeWallet", "type": "address"},
+    {"indexed": false, "name": "creator0", "type": "uint256"},
+    {"indexed": false, "name": "creator1", "type": "uint256"},
+    {"indexed": false, "name": "platform0", "type": "uint256"},
+    {"indexed": false, "name": "platform1", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "LauncherSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "launcher", "type": "address"}
+  ]},
+  {"type": "event", "name": "PlatformWalletSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "wallet", "type": "address"}
+  ]},
+  {"type": "event", "name": "FeeBpsUpdated", "anonymous": false, "inputs": [
+    {"indexed": false, "name": "creatorBps", "type": "uint256"},
+    {"indexed": false, "name": "platformBps", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "OwnershipTransferred", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "previousOwner", "type": "address"},
+    {"indexed": true, "name": "newOwner", "type": "address"}
+  ]},
+  {"type": "event", "name": "CTOFeeSet", "anonymous": false, "inputs": [
+    {"indexed": false, "name": "fee", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "CTOFeeWalletSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "wallet", "type": "address"}
+  ]},
+  {"type": "event", "name": "CTOApplied", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "applicant", "type": "address"},
+    {"indexed": false, "name": "newFeeWallet", "type": "address"},
+    {"indexed": false, "name": "paid", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "CTOApproved", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": false, "name": "newFeeWallet", "type": "address"}
+  ]},
+  {"type": "event", "name": "CTORejected", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "applicant", "type": "address"}
+  ]},
+  {"type": "function", "name": "creatorBps", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "platformBps", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "ctoFee", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "ctoFeeWallet", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "owner", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "launcher", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "platformWallet", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "allTokens", "stateMutability": "view", "inputs": [{"name": "", "type": "uint256"}], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "tokenCount", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "positions", "stateMutability": "view", "inputs": [{"name": "", "type": "address"}], "outputs": [
+    {"name": "tokenId", "type": "uint256"},
+    {"name": "feeWallet", "type": "address"},
+    {"name": "token0", "type": "address"},
+    {"name": "token1", "type": "address"},
+    {"name": "pool", "type": "address"},
+    {"name": "positionManager", "type": "address"}
+  ]},
+  {"type": "function", "name": "ctoApplications", "stateMutability": "view", "inputs": [{"name": "", "type": "address"}], "outputs": [
+    {"name": "applicant", "type": "address"},
+    {"name": "newFeeWallet", "type": "address"},
+    {"name": "paid", "type": "uint256"}
+  ]},
+  {"type": "function", "name": "setLauncher", "stateMutability": "nonpayable", "inputs": [{"name": "launcher_", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "setPlatformWallet", "stateMutability": "nonpayable", "inputs": [{"name": "wallet", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "setFeeBps", "stateMutability": "nonpayable", "inputs": [{"name": "creator_", "type": "uint256"}, {"name": "platform_", "type": "uint256"}], "outputs": []},
+  {"type": "function", "name": "transferOwnership", "stateMutability": "nonpayable", "inputs": [{"name": "newOwner", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "setCTOFee", "stateMutability": "nonpayable", "inputs": [{"name": "fee_", "type": "uint256"}], "outputs": []},
+  {"type": "function", "name": "setCTOFeeWallet", "stateMutability": "nonpayable", "inputs": [{"name": "wallet_", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "applyForCTO", "stateMutability": "payable", "inputs": [{"name": "token", "type": "address"}, {"name": "newFeeWallet", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "approveCTO", "stateMutability": "nonpayable", "inputs": [{"name": "token", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "rejectCTO", "stateMutability": "nonpayable", "inputs": [{"name": "token", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "registerPosition", "stateMutability": "nonpayable", "inputs": [
+    {"name": "token", "type": "address"},
+    {"name": "tokenId", "type": "uint256"},
+    {"name": "feeWallet", "type": "address"},
+    {"name": "token0", "type": "address"},
+    {"name": "token1", "type": "address"},
+    {"name": "pool", "type": "address"},
+    {"name": "positionManager", "type": "address"}
+  ], "outputs": []},
+  {"type": "function", "name": "claimFees", "stateMutability": "nonpayable", "inputs": [{"name": "token", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "claimAllFees", "stateMutability": "nonpayable", "inputs": [], "outputs": []},
+  {"type": "function", "name": "claimFeesRange", "stateMutability": "nonpayable", "inputs": [{"name": "from", "type": "uint256"}, {"name": "to", "type": "uint256"}], "outputs": []},
+  {"type": "function", "name": "pendingCreatorFees", "stateMutability": "view", "inputs": [{"name": "token", "type": "address"}], "outputs": [
+    {"name": "token0", "type": "address"},
+    {"name": "token1", "type": "address"},
+    {"name": "amount0", "type": "uint256"},
+    {"name": "amount1", "type": "uint256"}
+  ]}
+]

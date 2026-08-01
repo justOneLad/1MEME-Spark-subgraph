@@ -1,0 +1,63 @@
+[
+  {"type": "event", "name": "ExemptSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "account", "type": "address"},
+    {"indexed": false, "name": "exempt", "type": "bool"}
+  ]},
+  {"type": "event", "name": "OwnershipTransferred", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "previousOwner", "type": "address"},
+    {"indexed": true, "name": "newOwner", "type": "address"}
+  ]},
+  {"type": "event", "name": "Transfer", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "from", "type": "address"},
+    {"indexed": true, "name": "to", "type": "address"},
+    {"indexed": false, "name": "value", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "Approval", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "owner", "type": "address"},
+    {"indexed": true, "name": "spender", "type": "address"},
+    {"indexed": false, "name": "value", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "MetaURISet", "anonymous": false, "inputs": [
+    {"indexed": false, "name": "uri", "type": "string"}
+  ]},
+  {"type": "function", "name": "TOTAL_SUPPLY", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "MAX_TX_BLOCKS", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "MAX_WALLET", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "launchBlock", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "isExempt", "stateMutability": "view", "inputs": [{"name": "", "type": "address"}], "outputs": [{"name": "", "type": "bool"}]},
+  {"type": "function", "name": "nonces", "stateMutability": "view", "inputs": [{"name": "", "type": "address"}], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "initSpark", "stateMutability": "nonpayable", "inputs": [
+    {"name": "name_", "type": "string"},
+    {"name": "symbol_", "type": "string"},
+    {"name": "metaURI_", "type": "string"},
+    {"name": "launcher_", "type": "address"}
+  ], "outputs": []},
+  {"type": "function", "name": "setExempt", "stateMutability": "nonpayable", "inputs": [
+    {"name": "account", "type": "address"},
+    {"name": "exempt_", "type": "bool"}
+  ], "outputs": []},
+  {"type": "function", "name": "name", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "string"}]},
+  {"type": "function", "name": "symbol", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "string"}]},
+  {"type": "function", "name": "decimals", "stateMutability": "pure", "inputs": [], "outputs": [{"name": "", "type": "uint8"}]},
+  {"type": "function", "name": "totalSupply", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "metaURI", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "string"}]},
+  {"type": "function", "name": "owner", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "setMetaURI", "stateMutability": "nonpayable", "inputs": [{"name": "uri_", "type": "string"}], "outputs": []},
+  {"type": "function", "name": "transferOwnership", "stateMutability": "nonpayable", "inputs": [{"name": "newOwner", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "renounceOwnership", "stateMutability": "nonpayable", "inputs": [], "outputs": []},
+  {"type": "function", "name": "balanceOf", "stateMutability": "view", "inputs": [{"name": "account", "type": "address"}], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "allowance", "stateMutability": "view", "inputs": [{"name": "owner_", "type": "address"}, {"name": "spender", "type": "address"}], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "approve", "stateMutability": "nonpayable", "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}], "outputs": [{"name": "", "type": "bool"}]},
+  {"type": "function", "name": "transfer", "stateMutability": "nonpayable", "inputs": [{"name": "to", "type": "address"}, {"name": "amount", "type": "uint256"}], "outputs": [{"name": "", "type": "bool"}]},
+  {"type": "function", "name": "transferFrom", "stateMutability": "nonpayable", "inputs": [{"name": "from", "type": "address"}, {"name": "to", "type": "address"}, {"name": "amount", "type": "uint256"}], "outputs": [{"name": "", "type": "bool"}]},
+  {"type": "function", "name": "DOMAIN_SEPARATOR", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "bytes32"}]},
+  {"type": "function", "name": "permit", "stateMutability": "nonpayable", "inputs": [
+    {"name": "owner_", "type": "address"},
+    {"name": "spender", "type": "address"},
+    {"name": "value", "type": "uint256"},
+    {"name": "deadline", "type": "uint256"},
+    {"name": "v", "type": "uint8"},
+    {"name": "r", "type": "bytes32"},
+    {"name": "s", "type": "bytes32"}
+  ], "outputs": []}
+]

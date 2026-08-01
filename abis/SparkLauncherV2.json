@@ -1,0 +1,91 @@
+[
+  {"type": "event", "name": "TokenLaunched", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "creator", "type": "address"},
+    {"indexed": true, "name": "positionManager", "type": "address"},
+    {"indexed": false, "name": "feeWallet", "type": "address"},
+    {"indexed": false, "name": "hook", "type": "address"},
+    {"indexed": false, "name": "poolId", "type": "bytes32"},
+    {"indexed": false, "name": "tokenId", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "DexAdded", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "positionManager", "type": "address"},
+    {"indexed": false, "name": "protocol", "type": "uint8"},
+    {"indexed": false, "name": "singleton", "type": "address"},
+    {"indexed": false, "name": "poolLogic", "type": "address"},
+    {"indexed": false, "name": "permit2", "type": "address"},
+    {"indexed": false, "name": "hook", "type": "address"}
+  ]},
+  {"type": "event", "name": "DexDisabled", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "positionManager", "type": "address"}
+  ]},
+  {"type": "event", "name": "LaunchFeeWalletSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "wallet", "type": "address"}
+  ]},
+  {"type": "event", "name": "BurnerSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "burner", "type": "address"}
+  ]},
+  {"type": "event", "name": "LaunchFeeSet", "anonymous": false, "inputs": [
+    {"indexed": false, "name": "fee", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "MarketCapRefSet", "anonymous": false, "inputs": [
+    {"indexed": false, "name": "marketCapRef", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "ETHRescued", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "to", "type": "address"},
+    {"indexed": false, "name": "amount", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "ERC20Rescued", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "to", "type": "address"},
+    {"indexed": false, "name": "amount", "type": "uint256"}
+  ]},
+  {"type": "function", "name": "VANITY_SUFFIX", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint16"}]},
+  {"type": "function", "name": "TOTAL_SUPPLY", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "PROTOCOL_UNISWAP_V4", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint8"}]},
+  {"type": "function", "name": "PROTOCOL_PANCAKE_INFINITY", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint8"}]},
+  {"type": "function", "name": "tokenImpl", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "locker", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "owner", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "launchFeeWallet", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "burner", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "launchFee", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "marketCapRef", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "tokenHook", "stateMutability": "view", "inputs": [{"name": "", "type": "address"}], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "dexes", "stateMutability": "view", "inputs": [{"name": "", "type": "address"}], "outputs": [
+    {"name": "protocol", "type": "uint8"},
+    {"name": "singleton", "type": "address"},
+    {"name": "poolLogic", "type": "address"},
+    {"name": "permit2", "type": "address"},
+    {"name": "hook", "type": "address"},
+    {"name": "enabled", "type": "bool"}
+  ]},
+  {"type": "function", "name": "transferOwnership", "stateMutability": "nonpayable", "inputs": [{"name": "newOwner", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "setLaunchFeeWallet", "stateMutability": "nonpayable", "inputs": [{"name": "wallet", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "setBurner", "stateMutability": "nonpayable", "inputs": [{"name": "burner_", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "setLaunchFee", "stateMutability": "nonpayable", "inputs": [{"name": "fee_", "type": "uint256"}], "outputs": []},
+  {"type": "function", "name": "setMarketCapRef", "stateMutability": "nonpayable", "inputs": [{"name": "ref_", "type": "uint256"}], "outputs": []},
+  {"type": "function", "name": "addDex", "stateMutability": "nonpayable", "inputs": [
+    {"name": "positionManager_", "type": "address"},
+    {"name": "protocol_", "type": "uint8"},
+    {"name": "singleton_", "type": "address"},
+    {"name": "poolLogic_", "type": "address"},
+    {"name": "permit2_", "type": "address"},
+    {"name": "hook_", "type": "address"}
+  ], "outputs": []},
+  {"type": "function", "name": "disableDex", "stateMutability": "nonpayable", "inputs": [{"name": "positionManager_", "type": "address"}], "outputs": []},
+  {"type": "function", "name": "rescueETH", "stateMutability": "nonpayable", "inputs": [{"name": "to_", "type": "address"}, {"name": "amount_", "type": "uint256"}], "outputs": []},
+  {"type": "function", "name": "rescueERC20", "stateMutability": "nonpayable", "inputs": [{"name": "token_", "type": "address"}, {"name": "to_", "type": "address"}, {"name": "amount_", "type": "uint256"}], "outputs": []},
+  {"type": "function", "name": "launch", "stateMutability": "payable", "inputs": [
+    {"name": "name_", "type": "string"},
+    {"name": "symbol_", "type": "string"},
+    {"name": "metaURI_", "type": "string"},
+    {"name": "feeWallet_", "type": "address"},
+    {"name": "positionManager_", "type": "address"},
+    {"name": "vanitySalt_", "type": "bytes32"}
+  ], "outputs": [
+    {"name": "token", "type": "address"},
+    {"name": "poolId", "type": "bytes32"},
+    {"name": "tokenId", "type": "uint256"}
+  ]}
+]

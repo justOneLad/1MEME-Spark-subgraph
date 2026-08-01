@@ -1,0 +1,100 @@
+[
+  {
+    "type": "event",
+    "name": "LockCreated",
+    "anonymous": false,
+    "inputs": [
+      { "name": "lockId",    "type": "uint256", "indexed": true  },
+      { "name": "owner",     "type": "address", "indexed": true  },
+      { "name": "token",     "type": "address", "indexed": true  },
+      { "name": "amount",    "type": "uint256", "indexed": false },
+      { "name": "startTime", "type": "uint256", "indexed": false },
+      { "name": "endTime",   "type": "uint256", "indexed": false },
+      { "name": "lockType",  "type": "uint8",   "indexed": false },
+      { "name": "isLP",      "type": "bool",    "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "LockEdited",
+    "anonymous": false,
+    "inputs": [
+      { "name": "lockId",     "type": "uint256", "indexed": true  },
+      { "name": "newAmount",  "type": "uint256", "indexed": false },
+      { "name": "newEndTime", "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "LockDescriptionChanged",
+    "anonymous": false,
+    "inputs": [
+      { "name": "lockId",      "type": "uint256", "indexed": true  },
+      { "name": "description", "type": "string",  "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Withdrawn",
+    "anonymous": false,
+    "inputs": [
+      { "name": "lockId",    "type": "uint256", "indexed": true  },
+      { "name": "owner",     "type": "address", "indexed": true  },
+      { "name": "amount",    "type": "uint256", "indexed": false },
+      { "name": "nativeFee", "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "LockExtended",
+    "anonymous": false,
+    "inputs": [
+      { "name": "lockId",     "type": "uint256", "indexed": true  },
+      { "name": "newEndTime", "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "LockTransferred",
+    "anonymous": false,
+    "inputs": [
+      { "name": "lockId", "type": "uint256", "indexed": true },
+      { "name": "from",   "type": "address", "indexed": true },
+      { "name": "to",     "type": "address", "indexed": true }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "LockRenounced",
+    "anonymous": false,
+    "inputs": [
+      { "name": "lockId", "type": "uint256", "indexed": true }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "FeeUpdated",
+    "anonymous": false,
+    "inputs": [
+      { "name": "newFee", "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "FeesCollected",
+    "anonymous": false,
+    "inputs": [
+      { "name": "to",     "type": "address", "indexed": true  },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "TwapUpdated",
+    "anonymous": false,
+    "inputs": [
+      { "name": "price0Avg", "type": "uint256", "indexed": false },
+      { "name": "price1Avg", "type": "uint256", "indexed": false }
+    ]
+  }
+]

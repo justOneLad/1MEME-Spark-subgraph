@@ -1,0 +1,392 @@
+enum Protocol {
+  UNISWAP_V4
+  PANCAKE_INFINITY
+}
+
+enum CTOStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CTOSource {
+  LOCKER
+  HOOK_V4
+  HOOK_INFINITY
+}
+
+enum SwapSide {
+  BUY # native BNB in, token out
+  SELL # token in, native BNB out
+}
+
+"""
+Global, singleton counters across the whole deployment. id is always "1".
+"""
+type SparkStats @entity(immutable: false) {
+  id: ID!
+  tokensLaunched: BigInt!
+  dexCount: BigInt!
+  lockerFeeClaims: BigInt!
+  hookFeeClaims: BigInt!
+  burns: BigInt!
+  totalNativeBurnedIn: BigInt!
+  totalCallerRewardsPaid: BigInt!
+  totalTokensBurned: BigInt!
+  ctoApplications: BigInt!
+  ctoApprovals: BigInt!
+  ctoRejections: BigInt!
+  totalSwaps: BigInt!
+  totalBuys: BigInt!
+  totalSells: BigInt!
+  totalVolumeNative: BigInt!
+}
+
+"""
+SparkLauncherV2 — one row per deployed launcher (there is one active launcher
+per Deployment.md, but the schema does not assume singularity).
+"""
+type Launcher @entity(immutable: false) {
+  id: Bytes! # launcher contract address
+  owner: Bytes!
+  tokenImpl: Bytes!
+  locker: Bytes!
+  launchFeeWallet: Bytes!
+  burner: Bytes
+  launchFee: BigInt!
+  marketCapRef: BigInt!
+  tokensLaunchedCount: BigInt!
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  updatedAtBlock: BigInt!
+  updatedAtTimestamp: BigInt!
+  dexes: [Dex!]! @derivedFrom(field: "launcher")
+  tokens: [Token!]! @derivedFrom(field: "launcher")
+}
+
+"""
+A DEX registered on the launcher via addDex/disableDex — keyed by position manager.
+"""
+type Dex @entity(immutable: false) {
+  id: Bytes! # positionManager address
+  launcher: Launcher!
+  protocol: Protocol!
+  singleton: Bytes! # PoolManager (v4) or Vault (Infinity)
+  poolLogic: Bytes # CLPoolManager, Infinity only
+  permit2: Bytes!
+  hook: Bytes!
+  enabled: Boolean!
+  tokensLaunchedCount: BigInt!
+  addedAtBlock: BigInt!
+  addedAtTimestamp: BigInt!
+  updatedAtBlock: BigInt!
+  updatedAtTimestamp: BigInt!
+  tokens: [Token!]! @derivedFrom(field: "dex")
+}
+
+"""
+One row per launched SparkToken (EIP-1167 clone of the SparkToken implementation).
+"""
+type Token @entity(immutable: false) {
+  id: Bytes! # token clone address
+  launcher: Launcher!
+  dex: Dex!
+  name: String
+  symbol: String
+  decimals: Int
+  totalSupply: BigInt
+  metaURI: String
+  creator: Bytes!
+  feeWallet: Bytes!
+  routedToBurner: Boolean! # true if feeWallet_ passed to launch() was address(0)
+  currentOwner: Bytes # null once renounced (launch() always renounces at the end)
+  renounced: Boolean!
+  hook: Bytes!
+  protocol: Protocol!
+  poolId: Bytes!
+  positionManager: Bytes!
+  lockerTokenId: BigInt!
+  launchBlock: BigInt!
+  launchTimestamp: BigInt!
+  launchTx: Bytes!
+  holderCount: BigInt!
+  transferCount: BigInt!
+  pool: Pool @derivedFrom(field: "token")
+  lockerPosition: LockerPosition @derivedFrom(field: "token")
+  burns: [Burn!]! @derivedFrom(field: "token")
+  holders: [TokenHolder!]! @derivedFrom(field: "token")
+  swaps: [Swap!]! @derivedFrom(field: "token")
+}
+
+"""
+A hook-side pool registration (SparkHookV4.PoolRegistered / SparkHookInfinity.PoolRegistered),
+enriched with running buy/sell activity captured from the hook's own afterSwap call (see Swap
+below for why a call handler is used instead of an event). Every token launched through
+SparkLauncherV2 gets exactly one Pool row, created in the same transaction as the launch.
+id is the on-chain poolId (bytes32), which is already unique per hook+token pair.
+"""
+type Pool @entity(immutable: false) {
+  id: Bytes! # poolId
+  token: Token!
+  hook: Bytes!
+  protocol: Protocol!
+  creator: Bytes! # may change via CTO approval
+  registeredAtBlock: BigInt!
+  registeredAtTimestamp: BigInt!
+  registeredAtTx: Bytes!
+  totalFeesClaimed: BigInt!
+  claimCount: BigInt!
+  pendingCTOApplicationId: String
+  # Running swap (buy/sell) activity, updated from the hook's afterSwap call.
+  swapCount: BigInt!
+  buyCount: BigInt!
+  sellCount: BigInt!
+  totalVolumeNative: BigInt! # sum of abs(native BNB delta) across all swaps
+  totalVolumeToken: BigInt! # sum of abs(token delta) across all swaps
+  totalHookFeeTaken: BigInt! # sum of the hook's 2% native-BNB sell fee across all swaps
+  lastSwapBlock: BigInt
+  lastSwapTimestamp: BigInt
+  feeClaims: [HookFeeClaim!]! @derivedFrom(field: "pool")
+  swaps: [Swap!]! @derivedFrom(field: "pool")
+}
+
+"""
+SparkLocker.registerPosition — the permanent LP-NFT record for a launched token.
+"""
+type LockerPosition @entity(immutable: false) {
+  id: Bytes! # token address
+  token: Token!
+  tokenId: BigInt!
+  feeWallet: Bytes! # may change via CTO approval
+  currency0: Bytes!
+  currency1: Bytes!
+  singleton: Bytes!
+  positionManager: Bytes!
+  registeredAtBlock: BigInt!
+  registeredAtTimestamp: BigInt!
+  registeredAtTx: Bytes!
+  totalCreator0: BigInt!
+  totalCreator1: BigInt!
+  totalPlatform0: BigInt!
+  totalPlatform1: BigInt!
+  claimCount: BigInt!
+  pendingCTOApplicationId: String
+  feeClaims: [LockerFeeClaim!]! @derivedFrom(field: "position")
+}
+
+"""
+SparkLocker.claimFees — one per FeesClaimed event.
+"""
+type LockerFeeClaim @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  position: LockerPosition!
+  feeWallet: Bytes!
+  creator0: BigInt!
+  creator1: BigInt!
+  platform0: BigInt!
+  platform1: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+SparkHookV4/SparkHookInfinity.claimFees — one per FeesClaimed event.
+"""
+type HookFeeClaim @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  pool: Pool!
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+Community takeover application, tracked across SparkLocker, SparkHookV4 and
+SparkHookInfinity. Each applyForCTO overwrites any prior pending application
+for the same key on-chain, so status transitions (PENDING -> APPROVED/REJECTED)
+are resolved via Pool.pendingCTOApplicationId / LockerPosition.pendingCTOApplicationId.
+"""
+type CTOApplication @entity(immutable: false) {
+  id: ID! # source-txHash-logIndex
+  source: CTOSource!
+  token: Token
+  pool: Pool
+  position: LockerPosition
+  applicant: Bytes!
+  newRecipient: Bytes! # newFeeWallet (locker) or newCreator (hooks)
+  paid: BigInt!
+  status: CTOStatus!
+  appliedAtBlock: BigInt!
+  appliedAtTimestamp: BigInt!
+  appliedAtTx: Bytes!
+  resolvedAtBlock: BigInt
+  resolvedAtTimestamp: BigInt
+  resolvedAtTx: Bytes
+}
+
+"""
+SparkBurner.burnV4 / burnInfinity — claims a token's accrued hook fees, swaps
+95% into the token and sends it to 0x...dEaD, pays the caller the other 5%.
+"""
+type Burn @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  token: Token!
+  caller: Bytes!
+  nativeIn: BigInt!
+  callerReward: BigInt!
+  tokenBurned: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+Current balance of one holder of one launched token, maintained from Transfer events.
+"""
+type TokenHolder @entity(immutable: false) {
+  id: Bytes! # token address - holder address
+  token: Token!
+  holder: Bytes!
+  balance: BigInt!
+}
+
+"""
+Raw ERC-20 Transfer log for a launched token.
+"""
+type TokenTransfer @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  token: Token!
+  from: Bytes!
+  to: Bytes!
+  value: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+A single swap (buy or sell) against a Spark-launched token's pool. Neither SparkHookV4 nor
+SparkHookInfinity emits a per-swap event, but the pool's hook address is part of the pool's
+identity (baked into its poolId) — Uniswap v4 / PancakeSwap Infinity invoke the hook's
+afterSwap on every single swap against that pool, with no way to bypass it. So Swap rows are
+captured via an afterSwap call handler (see subgraph.yaml) rather than a log event: the
+`delta` argument passed into afterSwap is the same BalanceDelta the DEX singleton itself
+would have put in a Swap event, packed as (int128 amount0 << 128) | uint128(amount1) — see
+https://github.com/Uniswap/v4-core/blob/main/src/types/BalanceDelta.sol. Every Spark pool
+always pairs the token against native BNB as currency0, so side/volume are derived directly
+from the sign of amount0: the pool receiving BNB (amount0 > 0) means someone bought the token;
+the pool paying out BNB (amount0 < 0) means someone sold it.
+"""
+type Swap @entity(immutable: true) {
+  id: Bytes! # tx hash + pool id + per-pool swap sequence number (calls have no log index)
+  pool: Pool!
+  token: Token!
+  protocol: Protocol!
+  side: SwapSide!
+  sender: Bytes! # immediate caller of PoolManager/CLPoolManager.swap() — often a router
+  origin: Bytes! # tx.from — the wallet that actually initiated the trade
+  amount0: BigInt! # signed native BNB delta on the pool
+  amount1: BigInt! # signed token delta on the pool
+  nativeAmount: BigInt! # abs(amount0)
+  tokenAmount: BigInt! # abs(amount1)
+  hookFeeTaken: BigInt! # the hook's 2% native-BNB cut on this swap (0 unless it was a sell)
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+# ─── OneCoinLocker (BSC) ─────────────────────────────────────────────────────
+# A general-purpose token/LP locker on BSC, unrelated to 1MEME Spark itself —
+# ported from timedbase/OneMEMELaunchpad-Subgraph
+# (https://github.com/timedbase/OneMEMELaunchpad-Subgraph), which uses the
+# same contract for arbitrary token/LP locks outside the Spark launch flow.
+# Included here at the user's request as a standalone data source alongside
+# the Spark entities above — it does not reference or derive from any Token/
+# Pool/Launcher entity elsewhere in this schema.
+
+"""
+Singleton per deployed OneCoinLocker contract. id is the contract address.
+"""
+type Locker @entity(immutable: false) {
+  id: Bytes! # contract address
+  totalLocks: BigInt! # all-time number of locks ever created
+  activeLocks: BigInt! # locks not yet fully withdrawn or renounced
+  fee: BigInt! # current static fallback fee (wei), updated via FeeUpdated
+  totalFeesCollected: BigInt! # cumulative native fees swept by the owner via collectFees()
+  locks: [Lock!]! @derivedFrom(field: "locker")
+}
+
+"""
+An individual token lock on OneCoinLocker.
+"""
+type Lock @entity(immutable: false) {
+  id: Bytes! # locker address + lockId
+  locker: Locker!
+  lockId: BigInt!
+  owner: Bytes # address(0) / null when renounced
+  token: Bytes!
+  amount: BigInt! # actual tokens received after any transfer fee
+  withdrawn: BigInt!
+  lockDate: BigInt!
+  startTime: BigInt! # 0 for Cliff locks; vesting start for Linear locks
+  endTime: BigInt!
+  lockType: String! # "Cliff" | "Linear"
+  isLP: Boolean!
+  description: String!
+  renounced: Boolean!
+  createdAtTimestamp: BigInt!
+  createdAtBlockNumber: BigInt!
+  txHash: Bytes!
+  withdrawals: [LockWithdrawal!]! @derivedFrom(field: "lock")
+  transfers: [LockTransfer!]! @derivedFrom(field: "lock")
+  activity: [LockActivity!]! @derivedFrom(field: "lock")
+}
+
+"""
+One per Withdrawn event.
+"""
+type LockWithdrawal @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  lock: Lock!
+  owner: Bytes!
+  amount: BigInt!
+  nativeFee: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+A lock ownership transfer.
+"""
+type LockTransfer @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  lock: Lock!
+  from: Bytes!
+  to: Bytes!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+Unified activity log for a Lock — one entry per event regardless of type.
+Enables a single query to reconstruct the full lifecycle of any lock.
+"""
+type LockActivity @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  lock: Lock!
+  action: String! # CREATED | EDITED | EXTENDED | DESCRIPTION_CHANGED | WITHDRAWN | TRANSFERRED | RENOUNCED
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+  newAmount: BigInt # EDITED: new total amount after edit
+  newEndTime: BigInt # EDITED | EXTENDED: new unlock timestamp
+  description: String # DESCRIPTION_CHANGED: updated description text
+  withdrawnAmount: BigInt # WITHDRAWN: tokens removed in this withdrawal
+  nativeFee: BigInt # WITHDRAWN: native fee paid
+  from: Bytes # TRANSFERRED: previous owner
+  to: Bytes # TRANSFERRED: new owner
+}
