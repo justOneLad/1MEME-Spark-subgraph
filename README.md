@@ -1,10 +1,12 @@
 # 1MEME-Spark-subgraph
 
-A subgraph indexing the [1MEME Spark V2](https://github.com/justOneLad/1MEME-Spark) deployment
-on BNB Smart Chain (chain ID `56`), per
+A subgraph indexing both active [1MEME Spark](https://github.com/justOneLad/1MEME-Spark)
+deployments on BNB Smart Chain (chain ID `56`) — SparkV2 and SparkV1 — per
 [Deployment.md](https://github.com/justOneLad/1MEME-Spark/blob/main/Deployment.md).
 
 ## What it indexes
+
+### SparkV2
 
 Fixed data sources (the active, non-deprecated contracts from `Deployment.md`):
 
@@ -42,6 +44,50 @@ The deprecated/abandoned contracts listed in `Deployment.md` (the first-attempt 
 `SparkToken` impl, `SparkLocker`, and `SparkLauncherV2`, plus the one-time `HookV4Factory` helper)
 are intentionally **not** indexed.
 
+### SparkV1
+
+Deployed *after* SparkV2, specifically to fix a tradability gap: SparkV2's Uniswap v4 /
+PancakeSwap Infinity pools use a custom hook and a `fee: 0` pool key that neither DEX's frontend
+discovers or routes through by default, and most trading bots don't support hooked v4/Infinity
+pools at all. SparkV1 (`spark/SparkLauncher.sol`) seeds liquidity into plain Uniswap V3 /
+PancakeSwap V3 pools instead, using the standard fee-tier system, so pools are found and routable
+everywhere V3 already works. It also supports multiple quote tokens (WBNB plus USDT/USDC/USD1),
+each with its own `marketCapRef`, instead of SparkV2's single BNB-only `marketCapRef`.
+
+| Contract | Address | Start block |
+|---|---|---|
+| `SparkLauncher` | `0x1Bfc2A7d68A115B29906537D9E836A1799ebd3C4` | 113379808 |
+| `SparkLocker` (separate instance from SparkV2's) | `0xA69B4B4003483E7Ca27DDf1bE8cBC7e723afcF86` | 113379804 |
+
+`SparkLocker` and the `SparkToken` implementation are the same, byte-identical contracts already
+indexed for SparkV2 (verified via BscScan's bytecode-match auto-detection per `Deployment.md`) —
+SparkV1 just deploys its own separate instances of each, since `SparkLocker.launcher` is a single
+mutable address and a shared locker would have retired one launcher's ability to register new
+positions. Because SparkV1's data model genuinely differs from SparkV2's (no hook, a plain V3 pool instead
+of a hook-computed `poolId`, multiple quote tokens instead of one), it gets its own parallel set
+of entities (`LauncherV1`, `DexV1`, `QuoteToken`, `TokenV1`, `TokenHolderV1`, `TokenTransferV1`,
+`LockerPositionV1`, `LockerFeeClaimV1`, `PoolV1`, `SwapV1`) plus `SparkTokenV1` and `SparkV1Pool`
+templates, rather than reusing the SparkV2 entities above — see the schema comments in
+`schema.graphql` for the full reasoning. `CTOApplication` is shared across both versions (and
+both SparkV2 hooks) since it was already built to be source-polymorphic.
+
+**Swap tracking works differently for V1.** SparkV2 captures buy/sell activity via a call handler
+on the hook's own `afterSwap` (see below), which works because the hook is baked into the pool's
+identity. SparkV1 pools have no hook — they're plain Uniswap V3 / PancakeSwap V3 pools, whose
+`Swap` event fires for every pool on the whole DEX, not just Spark's. Instead, a `SparkV1Pool`
+template is instantiated at each token's specific pool address (emitted directly in
+`TokenLaunched`), so it only ever indexes that one pool's `Swap` events — the same technique
+Uniswap's own subgraph uses for per-pool tracking. Because SparkV1 supports multiple quote tokens
+(WBNB/USDT/USDC/USD1), `PoolV1`/`SwapV1` use `quoteAmount`/`totalVolumeQuote` rather than
+"native", and that volume is **not** folded into the global `SparkStats.totalVolumeNative` (which
+would incorrectly sum BNB-wei amounts together with stablecoin amounts) — see the schema comment
+on `SparkStats` for details. `SparkStats.totalSwaps`/`totalBuys`/`totalSells` (pure counts) do
+include V1 activity.
+
+Two earlier abandoned SparkV1 broadcast attempts (`0x35E7...`, `0xaBF5...`, plus their paired
+lockers/token impls) are listed "Do not use" in `Deployment.md` and are **not** indexed, same as
+SparkV2's deprecated set.
+
 ### OneCoinLocker (unrelated to Spark)
 
 Also included, at the user's request: `OneCoinLocker` (`0x6C6e9740753d9F6C1E5D61C8bc0f34E37590f6C5`,
@@ -53,6 +99,8 @@ which uses this same contract as a standalone locking utility outside its own la
 fully independent data source — no entity here links to any `Token`/`Pool`/`Launcher` above.
 
 ## Entities
+
+### SparkV2
 
 - `Launcher`, `Dex` — launcher config and registered DEXes (Uniswap v4 / PancakeSwap Infinity)
 - `Token` — one per launched meme token, with name/symbol/decimals/totalSupply/metaURI resolved
@@ -67,11 +115,29 @@ fully independent data source — no entity here links to any `Token`/`Pool`/`La
 - `LockerPosition`, `LockerFeeClaim` — the permanent LP-NFT record in `SparkLocker` and its
   70/30 creator/platform fee claims
 - `HookFeeClaim` — the hook's own 2% native-BNB sell fee claims (70/30 creator/platform split)
-- `CTOApplication` — community-takeover applications/approvals/rejections across the locker and
-  both hooks
 - `Burn` — `SparkBurner` calls that claim a token's fees, swap 95% into the token, burn it, and
   pay the caller 5%
 - `TokenHolder`, `TokenTransfer` — per-token balances and transfer log (see caveat below)
+
+### SparkV1
+
+- `LauncherV1`, `DexV1` — launcher config and registered DEXes (Uniswap V3 / PancakeSwap V3)
+- `QuoteToken` — a registered quote token (WBNB/USDT/USDC/USD1) with its own `marketCapRef` and
+  `wethPairFee`
+- `TokenV1` — one per launched meme token, same `eth_call`-resolved name/symbol/decimals/
+  totalSupply/metaURI as `Token`
+- `PoolV1` — the plain Uniswap V3 / PancakeSwap V3 pool seeded at launch, with running
+  swap/volume aggregates (`swapCount`, `buyCount`, `sellCount`, `totalVolumeQuote`,
+  `totalVolumeToken`), tracked via a per-pool `SparkV1Pool` template (see caveat below)
+- `SwapV1` — one row per buy or sell against a `PoolV1`, captured from the pool's own `Swap` event
+- `LockerPositionV1`, `LockerFeeClaimV1` — the permanent LP-NFT record in SparkV1's separate
+  `SparkLocker` instance and its fee claims
+- `TokenHolderV1`, `TokenTransferV1` — per-token balances and transfer log (see caveat below)
+
+### Shared across both versions
+
+- `CTOApplication` — community-takeover applications/approvals/rejections across both locker
+  instances and both SparkV2 hooks
 - `SparkStats` — a single global counters row (`id: "1"`), including `totalSwaps`/`totalBuys`/
   `totalSells`/`totalVolumeNative` across every Spark pool
 - `Locker`, `Lock`, `LockWithdrawal`, `LockTransfer`, `LockActivity` — OneCoinLocker (see above;
@@ -79,13 +145,14 @@ fully independent data source — no entity here links to any `Token`/`Pool`/`La
 
 ### Known caveat: launch-time token transfers
 
-The `SparkToken` template data source is only created while handling `TokenLaunched`, which fires
-at the very end of the `launch()` transaction — after the initial 1B mint, the LP-seeding
-transfer, and any instant-buy transfer already happened earlier in that same transaction. Dynamic
-data sources can't retroactively index events from earlier in the same block, so those specific
-transfers won't appear in `TokenHolder`/`TokenTransfer`. `Token.totalSupply` is unaffected since
-it's read directly from the contract via `eth_call`, not derived by summing transfers. This is the
-same well-known limitation every factory+template subgraph (e.g. Uniswap) has to live with.
+The `SparkToken`/`SparkTokenV1` template data sources are only created while handling
+`TokenLaunched`, which fires at the very end of the `launch()` transaction — after the initial 1B
+mint, the LP-seeding transfer, and (SparkV1 only) any instant-buy transfer already happened
+earlier in that same transaction. Dynamic data sources can't retroactively index events from
+earlier in the same block, so those specific transfers won't appear in
+`TokenHolder`/`TokenTransfer` (or their V1 counterparts). `Token(V1).totalSupply` is unaffected
+since it's read directly from the contract via `eth_call`, not derived by summing transfers. This
+is the same well-known limitation every factory+template subgraph (e.g. Uniswap) has to live with.
 
 ### Pool coverage
 
@@ -94,6 +161,17 @@ same well-known limitation every factory+template subgraph (e.g. Uniswap) has to
 launches always gets exactly one `Pool` row, created in the same transaction as the launch —
 before either hook's `startBlock` could possibly miss it, since both hooks were deployed (per
 `Deployment.md`) before the first `addDex` call that could have made a launch succeed.
+
+SparkV1 has no hook, so `PoolV1` is created directly in `handleTokenLaunched` (from
+`launcher-v1.ts`) instead of from a separate registration event, and a `SparkV1Pool` template is
+spawned at that exact pool address in the same handler to pick up its `Swap` events going
+forward. One consequence of the template approach: any swap in the *same transaction* as the
+launch (e.g. an instant-buy via `_doInstantBuy`) fires before the template exists yet, so — like
+the launch-time token transfer caveat above — it won't produce a `SwapV1` row, even though
+`PoolV1` itself is always created. `Mint`/`Burn` on the pool aren't tracked; SparkV1 liquidity is
+seeded once at launch and permanently held by `SparkLocker`, so no ongoing LP position changes are
+expected there (a third party could still mint a separate, unlocked position directly against the
+pool, but that's not part of Spark's own liquidity and isn't tracked here).
 
 ## Usage
 

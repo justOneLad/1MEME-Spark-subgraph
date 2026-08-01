@@ -12,6 +12,7 @@ export const PROTOCOL_PANCAKE_INFINITY = "PANCAKE_INFINITY";
 export const CTO_SOURCE_LOCKER = "LOCKER";
 export const CTO_SOURCE_HOOK_V4 = "HOOK_V4";
 export const CTO_SOURCE_HOOK_INFINITY = "HOOK_INFINITY";
+export const CTO_SOURCE_LOCKER_V1 = "LOCKER_V1";
 
 export const SWAP_SIDE_BUY = "BUY";
 export const SWAP_SIDE_SELL = "SELL";

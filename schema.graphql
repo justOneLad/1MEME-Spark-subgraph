@@ -13,6 +13,7 @@ enum CTOSource {
   LOCKER
   HOOK_V4
   HOOK_INFINITY
+  LOCKER_V1
 }
 
 enum SwapSide {
@@ -36,11 +37,15 @@ type SparkStats @entity(immutable: false) {
   ctoApplications: BigInt!
   ctoApprovals: BigInt!
   ctoRejections: BigInt!
-  totalSwaps: BigInt!
+  totalSwaps: BigInt! # includes both SparkV2 (Pool) and SparkV1 (PoolV1) swaps
   totalBuys: BigInt!
   totalSells: BigInt!
-  totalVolumeNative: BigInt!
+  totalVolumeNative: BigInt! # SparkV2 only — see below
 }
+# totalVolumeNative deliberately excludes SparkV1 swap volume: SparkV1 pools can be quoted in
+# WBNB, USDT, USDC or USD1 (see QuoteToken), so summing their deltas into one native-BNB-wei
+# figure would silently mix incompatible units/decimals. Per-quote-token V1 volume lives on
+# PoolV1.totalVolumeQuote instead.
 
 """
 SparkLauncherV2 — one row per deployed launcher (there is one active launcher
@@ -214,6 +219,8 @@ type CTOApplication @entity(immutable: false) {
   token: Token
   pool: Pool
   position: LockerPosition
+  tokenV1: TokenV1 # set when source is LOCKER_V1
+  positionV1: LockerPositionV1 # set when source is LOCKER_V1
   applicant: Bytes!
   newRecipient: Bytes! # newFeeWallet (locker) or newCreator (hooks)
   paid: BigInt!
@@ -292,6 +299,229 @@ type Swap @entity(immutable: true) {
   nativeAmount: BigInt! # abs(amount0)
   tokenAmount: BigInt! # abs(amount1)
   hookFeeTaken: BigInt! # the hook's 2% native-BNB cut on this swap (0 unless it was a sell)
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+# ─── SparkV1 (BSC) ───────────────────────────────────────────────────────────
+# A second, independent 1MEME Spark deployment (spark/SparkLauncher.sol), launched after
+# SparkV2 specifically to fix a tradability gap: SparkV2's Uniswap v4 / PancakeSwap Infinity
+# pools use a custom hook that most DEX frontends/routers don't discover, so SparkV1 seeds
+# liquidity into plain Uniswap V3 / PancakeSwap V3 pools instead (standard fee-tier system,
+# no hook). It also supports multiple quote tokens (WBNB, USDT, USDC, USD1), each with its
+# own marketCapRef, instead of SparkV2's single BNB-only marketCapRef. It reuses the same
+# SparkLocker/SparkToken contracts as SparkV2 (byte-identical, per Deployment.md) but as
+# separate deployed instances, so — like OneCoinLocker above — it gets its own parallel set
+# of entities below rather than reusing Launcher/Dex/Token/Pool/LockerPosition/
+# LockerFeeClaim, which carry SparkV2-specific (hook/protocol/poolId) fields that don't
+# apply here. CTOApplication is shared (see tokenV1/positionV1 fields above) since it was
+# already built to be source-polymorphic across the locker/hook flows.
+
+"""
+SparkLauncher (V1) — one row per deployed V1 launcher.
+"""
+type LauncherV1 @entity(immutable: false) {
+  id: Bytes! # launcher contract address
+  owner: Bytes!
+  weth: Bytes!
+  tokenImpl: Bytes!
+  locker: Bytes!
+  launchFeeWallet: Bytes!
+  launchFee: BigInt!
+  tokensLaunchedCount: BigInt!
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  updatedAtBlock: BigInt!
+  updatedAtTimestamp: BigInt!
+  dexes: [DexV1!]! @derivedFrom(field: "launcher")
+  quoteTokens: [QuoteToken!]! @derivedFrom(field: "launcher")
+  tokens: [TokenV1!]! @derivedFrom(field: "launcher")
+}
+
+"""
+A DEX registered on the V1 launcher via addDex/disableDex — keyed by factory address.
+"""
+type DexV1 @entity(immutable: false) {
+  id: Bytes! # factory address
+  launcher: LauncherV1!
+  positionManager: Bytes!
+  router: Bytes!
+  routerNoDeadline: Boolean! # true for Uniswap SwapRouter02-style routers (no `deadline` field)
+  enabled: Boolean!
+  tokensLaunchedCount: BigInt!
+  addedAtBlock: BigInt!
+  addedAtTimestamp: BigInt!
+  updatedAtBlock: BigInt!
+  updatedAtTimestamp: BigInt!
+  tokens: [TokenV1!]! @derivedFrom(field: "dex")
+}
+
+"""
+A quote token registered on the V1 launcher via addQuoteToken/disableQuoteToken.
+"""
+type QuoteToken @entity(immutable: false) {
+  id: Bytes! # quote token address
+  launcher: LauncherV1!
+  marketCapRef: BigInt!
+  wethPairFee: Int! # deepest WETH/WBNB pool fee tier for this quote token on the DEX, 0 for weth itself
+  enabled: Boolean!
+  addedAtBlock: BigInt!
+  addedAtTimestamp: BigInt!
+  updatedAtBlock: BigInt!
+  updatedAtTimestamp: BigInt!
+  tokens: [TokenV1!]! @derivedFrom(field: "quoteToken")
+}
+
+"""
+One row per launched SparkToken (V1) — an EIP-1167 clone paired against a V3-style pool.
+"""
+type TokenV1 @entity(immutable: false) {
+  id: Bytes! # token clone address
+  launcher: LauncherV1!
+  dex: DexV1!
+  quoteToken: QuoteToken!
+  name: String
+  symbol: String
+  decimals: Int
+  totalSupply: BigInt
+  metaURI: String
+  creator: Bytes!
+  feeWallet: Bytes!
+  currentOwner: Bytes # null once renounced (launch() always renounces at the end)
+  renounced: Boolean!
+  positionManager: Bytes!
+  lockerTokenId: BigInt!
+  launchBlock: BigInt!
+  launchTimestamp: BigInt!
+  launchTx: Bytes!
+  holderCount: BigInt!
+  transferCount: BigInt!
+  pool: PoolV1 @derivedFrom(field: "token")
+  lockerPosition: LockerPositionV1 @derivedFrom(field: "token")
+  holders: [TokenHolderV1!]! @derivedFrom(field: "token")
+  transfers: [TokenTransferV1!]! @derivedFrom(field: "token")
+}
+
+"""
+The plain Uniswap V3 / PancakeSwap V3 pool seeded by SparkLauncher.launch() for a TokenV1 —
+unlike SparkV2's hook-registered Pool, there's no PoolRegistered event for this; it's created
+inline in the same handleTokenLaunched that creates TokenV1, using the `pool` address emitted
+by TokenLaunched. Since V1 has no hook, swap activity can't be captured via a call handler the
+way SparkHookV4/SparkHookInfinity's afterSwap is — instead a SparkV1Pool template data source
+is spawned at this exact pool address (see subgraph.yaml), listening to that one pool's own
+standard Swap event. That's naturally scoped to just this pool (unlike the DEX-wide V3 Factory,
+which has no per-pool filtering), since a template instance only ever tracks the single address
+it was created at.
+"""
+type PoolV1 @entity(immutable: false) {
+  id: Bytes! # pool address
+  token: TokenV1!
+  quoteToken: QuoteToken!
+  currency0: Bytes!
+  currency1: Bytes!
+  quoteIsToken0: Boolean! # true if quoteToken == currency0 (token address ordering varies per launch)
+  fee: Int! # V3 fee tier (SparkLauncher.FEE_TIER, currently a 1% constant for every pool)
+  positionManager: Bytes!
+  creator: Bytes! # may change via CTO approval
+  registeredAtBlock: BigInt!
+  registeredAtTimestamp: BigInt!
+  registeredAtTx: Bytes!
+  swapCount: BigInt!
+  buyCount: BigInt!
+  sellCount: BigInt!
+  totalVolumeQuote: BigInt! # sum of abs(quote-token delta) across all swaps — NOT necessarily BNB, see quoteToken
+  totalVolumeToken: BigInt! # sum of abs(spark-token delta) across all swaps
+  lastSwapBlock: BigInt
+  lastSwapTimestamp: BigInt
+  swaps: [SwapV1!]! @derivedFrom(field: "pool")
+}
+
+"""
+A single swap (buy or sell) against a TokenV1's pool, captured directly from the pool
+contract's own Swap event (see PoolV1 above for why this works cleanly for V1 but not V2).
+side/quoteAmount are derived from PoolV1.quoteIsToken0: the pool receiving the quote token
+means someone bought the Spark token; the pool paying out the quote token means someone sold it.
+"""
+type SwapV1 @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  pool: PoolV1!
+  token: TokenV1!
+  quoteToken: QuoteToken!
+  side: SwapSide!
+  sender: Bytes! # immediate caller of the pool's swap() — often a router
+  recipient: Bytes! # where the pool sent the output token
+  origin: Bytes! # tx.from — the wallet that actually initiated the trade
+  amount0: BigInt! # signed delta on currency0
+  amount1: BigInt! # signed delta on currency1
+  quoteAmount: BigInt! # abs(quote-token delta)
+  tokenAmount: BigInt! # abs(spark-token delta)
+  sqrtPriceX96: BigInt!
+  tick: Int!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+SparkLocker.registerPosition (V1 instance) — the permanent LP-NFT record for a V1-launched token.
+"""
+type LockerPositionV1 @entity(immutable: false) {
+  id: Bytes! # token address
+  token: TokenV1!
+  tokenId: BigInt!
+  feeWallet: Bytes! # may change via CTO approval
+  currency0: Bytes!
+  currency1: Bytes!
+  singleton: Bytes!
+  positionManager: Bytes!
+  registeredAtBlock: BigInt!
+  registeredAtTimestamp: BigInt!
+  registeredAtTx: Bytes!
+  totalCreator0: BigInt!
+  totalCreator1: BigInt!
+  totalPlatform0: BigInt!
+  totalPlatform1: BigInt!
+  claimCount: BigInt!
+  pendingCTOApplicationId: String
+  feeClaims: [LockerFeeClaimV1!]! @derivedFrom(field: "position")
+}
+
+"""
+SparkLocker.claimFees (V1 instance) — one per FeesClaimed event.
+"""
+type LockerFeeClaimV1 @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  position: LockerPositionV1!
+  feeWallet: Bytes!
+  creator0: BigInt!
+  creator1: BigInt!
+  platform0: BigInt!
+  platform1: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+Current balance of one holder of one V1-launched token, maintained from Transfer events.
+"""
+type TokenHolderV1 @entity(immutable: false) {
+  id: Bytes! # token address - holder address
+  token: TokenV1!
+  holder: Bytes!
+  balance: BigInt!
+}
+
+"""
+Raw ERC-20 Transfer log for a V1-launched token.
+"""
+type TokenTransferV1 @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  token: TokenV1!
+  from: Bytes!
+  to: Bytes!
+  value: BigInt!
   blockNumber: BigInt!
   timestamp: BigInt!
   txHash: Bytes!

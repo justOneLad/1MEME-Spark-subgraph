@@ -1,8 +1,10 @@
 specVersion: 1.0.0
 description: >-
-  Subgraph for 1MEME Spark V2 on BSC mainnet — SparkLauncherV2, SparkLocker,
-  SparkHookV4, SparkHookInfinity and SparkBurner, plus dynamically templated
-  SparkToken clones created by each launch. See
+  Subgraph for 1MEME Spark on BSC mainnet, covering both active deployments:
+  SparkV2 (SparkLauncherV2, SparkLocker, SparkHookV4, SparkHookInfinity and
+  SparkBurner) and SparkV1 (SparkLauncher plus a second SparkLocker instance),
+  plus dynamically templated SparkToken clones created by each launch on
+  either version. See
   https://github.com/justOneLad/1MEME-Spark/blob/main/Deployment.md. Also
   includes OneCoinLocker, a general-purpose BSC token/LP locker unrelated to
   Spark, ported from timedbase/OneMEMELaunchpad-Subgraph.
@@ -217,6 +219,78 @@ dataSources:
         - event: Burned(indexed address,indexed address,uint256,uint256,uint256)
           handler: handleBurned
       file: ./src/burner.ts
+  - kind: ethereum
+    name: SparkLauncherV1
+    network: bsc
+    source:
+      address: "0x1Bfc2A7d68A115B29906537D9E836A1799ebd3C4"
+      abi: SparkLauncher
+      startBlock: 113379808
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - LauncherV1
+        - DexV1
+        - QuoteToken
+        - TokenV1
+        - PoolV1
+      abis:
+        - name: SparkLauncher
+          file: ./abis/SparkLauncher.json
+        - name: SparkToken
+          file: ./abis/SparkToken.json
+        - name: UniswapV3Pool
+          file: ./abis/UniswapV3Pool.json
+      eventHandlers:
+        - event: TokenLaunched(indexed address,indexed address,indexed address,address,address,address,uint256)
+          handler: handleTokenLaunched
+        - event: DexAdded(indexed address,address,address,bool)
+          handler: handleDexAdded
+        - event: DexDisabled(indexed address)
+          handler: handleDexDisabled
+        - event: QuoteTokenAdded(indexed address,uint256,uint24)
+          handler: handleQuoteTokenAdded
+        - event: QuoteTokenDisabled(indexed address)
+          handler: handleQuoteTokenDisabled
+        - event: LaunchFeeWalletSet(indexed address)
+          handler: handleLaunchFeeWalletSet
+        - event: LaunchFeeSet(uint256)
+          handler: handleLaunchFeeSet
+        - event: MarketCapRefSet(indexed address,uint256)
+          handler: handleMarketCapRefSet
+      file: ./src/launcher-v1.ts
+  - kind: ethereum
+    name: SparkLockerV1
+    network: bsc
+    source:
+      address: "0xA69B4B4003483E7Ca27DDf1bE8cBC7e723afcF86"
+      abi: SparkLocker
+      startBlock: 113379804
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - LockerPositionV1
+        - LockerFeeClaimV1
+        - CTOApplication
+      abis:
+        - name: SparkLocker
+          file: ./abis/SparkLocker.json
+      eventHandlers:
+        - event: PositionRegistered(indexed address,indexed uint256,address,address,address)
+          handler: handlePositionRegistered
+        - event: FeesClaimed(indexed address,indexed address,uint256,uint256,uint256,uint256)
+          handler: handleFeesClaimed
+        - event: CTOApplied(indexed address,indexed address,address,uint256)
+          handler: handleCTOApplied
+        - event: CTOApproved(indexed address,address)
+          handler: handleCTOApproved
+        - event: CTORejected(indexed address,indexed address)
+          handler: handleCTORejected
+      file: ./src/locker-v1.ts
 templates:
   - kind: ethereum
     name: SparkToken
@@ -242,3 +316,46 @@ templates:
         - event: MetaURISet(string)
           handler: handleMetaURISet
       file: ./src/token.ts
+  - kind: ethereum
+    name: SparkTokenV1
+    network: bsc
+    source:
+      abi: SparkToken
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - TokenV1
+        - TokenHolderV1
+        - TokenTransferV1
+      abis:
+        - name: SparkToken
+          file: ./abis/SparkToken.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: MetaURISet(string)
+          handler: handleMetaURISet
+      file: ./src/token-v1.ts
+  - kind: ethereum
+    name: SparkV1Pool
+    network: bsc
+    source:
+      abi: UniswapV3Pool
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - PoolV1
+        - SwapV1
+      abis:
+        - name: UniswapV3Pool
+          file: ./abis/UniswapV3Pool.json
+      eventHandlers:
+        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
+          handler: handleSwap
+      file: ./src/pool-v1.ts
