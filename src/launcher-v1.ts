@@ -1,4 +1,4 @@
-import { Address, BigInt, ethereum } from "@graphprotocol/graph-ts";
+import { Address, BigInt, Bytes, ethereum } from "@graphprotocol/graph-ts";
 import {
   TokenLaunched,
   DexAdded,
@@ -144,6 +144,28 @@ export function handleMarketCapRefSet(event: MarketCapRefSet): void {
   quoteToken.save();
 }
 
+function getOrCreateQuoteToken(address: Address, launcherId: Bytes, event: ethereum.Event): QuoteToken {
+  let quoteToken = QuoteToken.load(address);
+  if (quoteToken == null) {
+    // Covers native BNB specifically: SparkLauncher's initialize() sets quoteTokens[weth_]
+    // directly without ever emitting QuoteTokenAdded, so handleQuoteTokenAdded never runs for
+    // it — without this fallback, TokenV1.quoteToken (non-null) would dangle for every
+    // native-BNB-quoted launch.
+    quoteToken = new QuoteToken(address);
+    quoteToken.launcher = launcherId;
+    quoteToken.marketCapRef = BigInt.fromString("5000000000000000000");
+    quoteToken.wethPairFee = 0;
+    quoteToken.enabled = true;
+    quoteToken.routeCount = ZERO_BI;
+    quoteToken.addedAtBlock = event.block.number;
+    quoteToken.addedAtTimestamp = event.block.timestamp;
+    quoteToken.updatedAtBlock = event.block.number;
+    quoteToken.updatedAtTimestamp = event.block.timestamp;
+    quoteToken.save();
+  }
+  return quoteToken as QuoteToken;
+}
+
 export function handleTokenLaunched(event: TokenLaunched): void {
   let launcher = getOrCreateLauncher(event.address, event);
   launcher.tokensLaunchedCount = launcher.tokensLaunchedCount.plus(
@@ -160,6 +182,7 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   let token = new TokenV1(event.params.token);
   token.launcher = launcher.id;
   token.dex = event.params.factory;
+  getOrCreateQuoteToken(event.params.quoteToken, launcher.id, event);
   token.quoteToken = event.params.quoteToken;
   token.creator = event.params.creator;
   token.feeWallet = event.params.feeWallet;
