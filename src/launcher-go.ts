@@ -3,30 +3,39 @@ import {
   TokenLaunched,
   DexAdded,
   DexDisabled,
+  QuoteTokenAdded,
+  QuoteTokenDisabled,
   LaunchFeeWalletSet,
   BurnerSet,
   LaunchFeeSet,
   MarketCapRefSet,
-  SparkLauncherV2,
-} from "../generated/SparkLauncherV2/SparkLauncherV2";
-import { SparkToken as SparkTokenContract } from "../generated/SparkLauncherV2/SparkToken";
-import { SparkToken as SparkTokenTemplate } from "../generated/templates";
-import { Launcher, Dex, Token } from "../generated/schema";
+  InstantBuySkipped,
+  RoutesSet,
+  RouteSucceeded,
+  SparkGoLauncher,
+} from "../generated/SparkGoLauncher/SparkGoLauncher";
+import { SparkToken as SparkTokenContract } from "../generated/SparkGoLauncher/SparkToken";
+import { SparkTokenGo as SparkTokenGoTemplate } from "../generated/templates";
+import { LauncherGo, DexGo, QuoteTokenGo, TokenGo, RouteSuccessGo } from "../generated/schema";
 import {
   ZERO_BI,
   ZERO_ADDRESS,
   protocolToString,
+  eventId,
   getOrCreateStats,
 } from "./helpers";
 
-function getOrCreateLauncher(address: Address, event: ethereum.Event): Launcher {
-  let launcher = Launcher.load(address);
+function getOrCreateLauncher(address: Address, event: ethereum.Event): LauncherGo {
+  let launcher = LauncherGo.load(address);
   if (launcher == null) {
-    launcher = new Launcher(address);
-    let contract = SparkLauncherV2.bind(address);
+    launcher = new LauncherGo(address);
+    let contract = SparkGoLauncher.bind(address);
 
     let owner = contract.try_owner();
     launcher.owner = owner.reverted ? ZERO_ADDRESS : owner.value;
+
+    let weth = contract.try_weth();
+    launcher.weth = weth.reverted ? ZERO_ADDRESS : weth.value;
 
     let tokenImpl = contract.try_tokenImpl();
     launcher.tokenImpl = tokenImpl.reverted ? ZERO_ADDRESS : tokenImpl.value;
@@ -45,25 +54,22 @@ function getOrCreateLauncher(address: Address, event: ethereum.Event): Launcher 
     let launchFee = contract.try_launchFee();
     launcher.launchFee = launchFee.reverted ? ZERO_BI : launchFee.value;
 
-    let marketCapRef = contract.try_marketCapRef();
-    launcher.marketCapRef = marketCapRef.reverted ? ZERO_BI : marketCapRef.value;
-
     launcher.tokensLaunchedCount = ZERO_BI;
     launcher.createdAtBlock = event.block.number;
     launcher.createdAtTimestamp = event.block.timestamp;
   }
   launcher.updatedAtBlock = event.block.number;
   launcher.updatedAtTimestamp = event.block.timestamp;
-  return launcher as Launcher;
+  return launcher as LauncherGo;
 }
 
 export function handleDexAdded(event: DexAdded): void {
   let launcher = getOrCreateLauncher(event.address, event);
 
-  let dex = Dex.load(event.params.positionManager);
+  let dex = DexGo.load(event.params.positionManager);
   let isNew = dex == null;
   if (dex == null) {
-    dex = new Dex(event.params.positionManager);
+    dex = new DexGo(event.params.positionManager);
     dex.tokensLaunchedCount = ZERO_BI;
     dex.addedAtBlock = event.block.number;
     dex.addedAtTimestamp = event.block.timestamp;
@@ -90,12 +96,39 @@ export function handleDexAdded(event: DexAdded): void {
 }
 
 export function handleDexDisabled(event: DexDisabled): void {
-  let dex = Dex.load(event.params.positionManager);
+  let dex = DexGo.load(event.params.positionManager);
   if (dex == null) return;
   dex.enabled = false;
   dex.updatedAtBlock = event.block.number;
   dex.updatedAtTimestamp = event.block.timestamp;
   dex.save();
+}
+
+export function handleQuoteTokenAdded(event: QuoteTokenAdded): void {
+  let launcher = getOrCreateLauncher(event.address, event);
+
+  let quoteToken = QuoteTokenGo.load(event.params.token);
+  if (quoteToken == null) {
+    quoteToken = new QuoteTokenGo(event.params.token);
+    quoteToken.routeCount = ZERO_BI;
+    quoteToken.addedAtBlock = event.block.number;
+    quoteToken.addedAtTimestamp = event.block.timestamp;
+  }
+  quoteToken.launcher = launcher.id;
+  quoteToken.marketCapRef = event.params.marketCapRef;
+  quoteToken.enabled = true;
+  quoteToken.updatedAtBlock = event.block.number;
+  quoteToken.updatedAtTimestamp = event.block.timestamp;
+  quoteToken.save();
+}
+
+export function handleQuoteTokenDisabled(event: QuoteTokenDisabled): void {
+  let quoteToken = QuoteTokenGo.load(event.params.token);
+  if (quoteToken == null) return;
+  quoteToken.enabled = false;
+  quoteToken.updatedAtBlock = event.block.number;
+  quoteToken.updatedAtTimestamp = event.block.timestamp;
+  quoteToken.save();
 }
 
 export function handleLaunchFeeWalletSet(event: LaunchFeeWalletSet): void {
@@ -119,22 +152,26 @@ export function handleLaunchFeeSet(event: LaunchFeeSet): void {
 }
 
 export function handleMarketCapRefSet(event: MarketCapRefSet): void {
-  let launcher = getOrCreateLauncher(event.address, event);
-  launcher.marketCapRef = event.params.marketCapRef;
-  launcher.save();
+  let quoteToken = QuoteTokenGo.load(event.params.token);
+  if (quoteToken == null) return;
+  quoteToken.marketCapRef = event.params.marketCapRef;
+  quoteToken.updatedAtBlock = event.block.number;
+  quoteToken.updatedAtTimestamp = event.block.timestamp;
+  quoteToken.save();
 }
 
 /**
- * launch()'s original feeWallet_ argument isn't in the event (it only carries
- * the resolved feeWallet), so decode it from the transaction calldata to know
- * whether this launch explicitly routed to address(0) (the burner).
+ * launch()'s LaunchParams.feeWallet isn't in the event (it only carries the resolved
+ * feeWallet, post burner-substitution), so decode it from the transaction calldata to know
+ * whether this launch explicitly routed to address(0) (the burner). Calldata is a single
+ * LaunchParams struct; feeWallet is its 4th field.
  */
 function decodeOriginalFeeWalletWasZero(event: TokenLaunched): boolean {
   let input = event.transaction.input;
   if (input.length < 4) return false;
   let callData = Bytes.fromUint8Array(input.subarray(4));
   let decoded = ethereum.decode(
-    "(string,string,string,address,address,bytes32)",
+    "(string,string,string,address,address,address,bytes32,uint256,uint256,bool)",
     callData
   );
   if (decoded == null) return false;
@@ -150,15 +187,16 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   );
   launcher.save();
 
-  let dex = Dex.load(event.params.positionManager);
+  let dex = DexGo.load(event.params.positionManager);
   if (dex != null) {
     dex.tokensLaunchedCount = dex.tokensLaunchedCount.plus(BigInt.fromI32(1));
     dex.save();
   }
 
-  let token = new Token(event.params.token);
+  let token = new TokenGo(event.params.token);
   token.launcher = launcher.id;
   token.dex = event.params.positionManager;
+  token.quoteToken = event.params.quoteToken;
   token.creator = event.params.creator;
   token.feeWallet = event.params.feeWallet;
   token.routedToBurner = decodeOriginalFeeWalletWasZero(event);
@@ -177,6 +215,9 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   // owner-less (owner == address(0)) by the time this event is observed.
   token.currentOwner = null;
   token.renounced = true;
+
+  token.instantBuySkipped = false;
+  token.instantBuySkippedRefundWei = null;
 
   let tokenContract = SparkTokenContract.bind(event.params.token);
   let name = tokenContract.try_name();
@@ -198,5 +239,33 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   stats.tokensLaunched = stats.tokensLaunched.plus(BigInt.fromI32(1));
   stats.save();
 
-  SparkTokenTemplate.create(event.params.token);
+  SparkTokenGoTemplate.create(event.params.token);
+}
+
+export function handleInstantBuySkipped(event: InstantBuySkipped): void {
+  let token = TokenGo.load(event.params.token);
+  if (token == null) return;
+  token.instantBuySkipped = true;
+  token.instantBuySkippedRefundWei = event.params.refundedWei;
+  token.save();
+}
+
+export function handleRoutesSet(event: RoutesSet): void {
+  let quoteToken = QuoteTokenGo.load(event.params.quoteToken);
+  if (quoteToken == null) return;
+  quoteToken.routeCount = event.params.count;
+  quoteToken.routesUpdatedAtBlock = event.block.number;
+  quoteToken.routesUpdatedAtTimestamp = event.block.timestamp;
+  quoteToken.save();
+}
+
+export function handleRouteSucceeded(event: RouteSucceeded): void {
+  let routeSuccess = new RouteSuccessGo(eventId(event));
+  routeSuccess.quoteToken = event.params.quoteToken;
+  routeSuccess.routeIndex = event.params.routeIndex;
+  routeSuccess.amountOut = event.params.amountOut;
+  routeSuccess.blockNumber = event.block.number;
+  routeSuccess.timestamp = event.block.timestamp;
+  routeSuccess.txHash = event.transaction.hash;
+  routeSuccess.save();
 }

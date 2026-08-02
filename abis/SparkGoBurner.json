@@ -1,0 +1,10 @@
+[
+  {"type": "event", "name": "Burned", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "quoteCurrency", "type": "address"},
+    {"indexed": true, "name": "caller", "type": "address"},
+    {"indexed": false, "name": "quoteIn", "type": "uint256"},
+    {"indexed": false, "name": "callerReward", "type": "uint256"},
+    {"indexed": false, "name": "tokenBurned", "type": "uint256"}
+  ]}
+]

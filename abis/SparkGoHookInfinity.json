@@ -1,0 +1,54 @@
+[
+  {"type": "event", "name": "PoolRegistered", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "poolId", "type": "bytes32"},
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "creator", "type": "address"}
+  ]},
+  {"type": "event", "name": "FeesClaimed", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "poolId", "type": "bytes32"},
+    {"indexed": false, "name": "amount", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "CTOApplied", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "poolId", "type": "bytes32"},
+    {"indexed": true, "name": "applicant", "type": "address"},
+    {"indexed": false, "name": "newCreator", "type": "address"},
+    {"indexed": false, "name": "paid", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "CTOApproved", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "poolId", "type": "bytes32"},
+    {"indexed": false, "name": "newCreator", "type": "address"}
+  ]},
+  {"type": "event", "name": "CTORejected", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "poolId", "type": "bytes32"},
+    {"indexed": true, "name": "applicant", "type": "address"}
+  ]},
+  {"type": "function", "name": "afterSwap", "stateMutability": "nonpayable", "inputs": [
+    {"name": "sender", "type": "address"},
+    {"name": "key", "type": "tuple", "components": [
+      {"name": "currency0", "type": "address"},
+      {"name": "currency1", "type": "address"},
+      {"name": "hooks", "type": "address"},
+      {"name": "poolManager", "type": "address"},
+      {"name": "fee", "type": "uint24"},
+      {"name": "parameters", "type": "bytes32"}
+    ]},
+    {"name": "params", "type": "tuple", "components": [
+      {"name": "zeroForOne", "type": "bool"},
+      {"name": "amountSpecified", "type": "int256"},
+      {"name": "sqrtPriceLimitX96", "type": "uint160"}
+    ]},
+    {"name": "delta", "type": "int256"},
+    {"name": "hookData", "type": "bytes"}
+  ], "outputs": [
+    {"name": "", "type": "bytes4"},
+    {"name": "", "type": "int128"}
+  ]},
+  {"type": "function", "name": "pools", "stateMutability": "view", "inputs": [{"name": "", "type": "bytes32"}], "outputs": [
+    {"name": "token", "type": "address"},
+    {"name": "quoteCurrency", "type": "address"},
+    {"name": "tokenIsCurrency0", "type": "bool"},
+    {"name": "creator", "type": "address"},
+    {"name": "launchBlock", "type": "uint256"},
+    {"name": "registered", "type": "bool"}
+  ]}
+]

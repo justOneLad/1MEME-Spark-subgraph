@@ -8,6 +8,9 @@ import {
   LaunchFeeWalletSet,
   LaunchFeeSet,
   MarketCapRefSet,
+  InstantBuySkipped,
+  RoutesSet,
+  RouteSucceeded,
   SparkLauncher,
 } from "../generated/SparkLauncherV1/SparkLauncher";
 import { SparkToken as SparkTokenContract } from "../generated/SparkLauncherV1/SparkToken";
@@ -16,8 +19,8 @@ import {
   SparkTokenV1 as SparkTokenV1Template,
   SparkV1Pool as SparkV1PoolTemplate,
 } from "../generated/templates";
-import { LauncherV1, DexV1, QuoteToken, TokenV1, PoolV1 } from "../generated/schema";
-import { ZERO_BI, ZERO_ADDRESS, getOrCreateStats } from "./helpers";
+import { LauncherV1, DexV1, QuoteToken, TokenV1, PoolV1, RouteSuccess } from "../generated/schema";
+import { ZERO_BI, ZERO_ADDRESS, eventId, getOrCreateStats } from "./helpers";
 
 function getOrCreateLauncher(address: Address, event: ethereum.Event): LauncherV1 {
   let launcher = LauncherV1.load(address);
@@ -98,6 +101,7 @@ export function handleQuoteTokenAdded(event: QuoteTokenAdded): void {
   let quoteToken = QuoteToken.load(event.params.token);
   if (quoteToken == null) {
     quoteToken = new QuoteToken(event.params.token);
+    quoteToken.routeCount = ZERO_BI;
     quoteToken.addedAtBlock = event.block.number;
     quoteToken.addedAtTimestamp = event.block.timestamp;
   }
@@ -172,6 +176,9 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   token.currentOwner = null;
   token.renounced = true;
 
+  token.instantBuySkipped = false;
+  token.instantBuySkippedRefundWei = null;
+
   let tokenContract = SparkTokenContract.bind(event.params.token);
   let name = tokenContract.try_name();
   token.name = name.reverted ? null : name.value;
@@ -220,4 +227,32 @@ export function handleTokenLaunched(event: TokenLaunched): void {
 
   SparkTokenV1Template.create(event.params.token);
   SparkV1PoolTemplate.create(event.params.pool);
+}
+
+export function handleInstantBuySkipped(event: InstantBuySkipped): void {
+  let token = TokenV1.load(event.params.token);
+  if (token == null) return;
+  token.instantBuySkipped = true;
+  token.instantBuySkippedRefundWei = event.params.refundedWei;
+  token.save();
+}
+
+export function handleRoutesSet(event: RoutesSet): void {
+  let quoteToken = QuoteToken.load(event.params.quoteToken);
+  if (quoteToken == null) return;
+  quoteToken.routeCount = event.params.count;
+  quoteToken.routesUpdatedAtBlock = event.block.number;
+  quoteToken.routesUpdatedAtTimestamp = event.block.timestamp;
+  quoteToken.save();
+}
+
+export function handleRouteSucceeded(event: RouteSucceeded): void {
+  let routeSuccess = new RouteSuccess(eventId(event));
+  routeSuccess.quoteToken = event.params.quoteToken;
+  routeSuccess.routeIndex = event.params.routeIndex;
+  routeSuccess.amountOut = event.params.amountOut;
+  routeSuccess.blockNumber = event.block.number;
+  routeSuccess.timestamp = event.block.timestamp;
+  routeSuccess.txHash = event.transaction.hash;
+  routeSuccess.save();
 }

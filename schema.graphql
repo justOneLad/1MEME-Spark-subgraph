@@ -10,15 +10,15 @@ enum CTOStatus {
 }
 
 enum CTOSource {
-  LOCKER
-  HOOK_V4
-  HOOK_INFINITY
+  LOCKER_GO
+  HOOK_V4_GO
+  HOOK_INFINITY_GO
   LOCKER_V1
 }
 
 enum SwapSide {
-  BUY # native BNB in, token out
-  SELL # token in, native BNB out
+  BUY # quote currency in, token out
+  SELL # token in, quote currency out
 }
 
 """
@@ -26,55 +26,68 @@ Global, singleton counters across the whole deployment. id is always "1".
 """
 type SparkStats @entity(immutable: false) {
   id: ID!
-  tokensLaunched: BigInt!
+  tokensLaunched: BigInt! # SparkLauncher (V1) + SparkGo, combined
   dexCount: BigInt!
   lockerFeeClaims: BigInt!
   hookFeeClaims: BigInt!
   burns: BigInt!
-  totalNativeBurnedIn: BigInt!
-  totalCallerRewardsPaid: BigInt!
+  totalNativeBurnedIn: BigInt! # native-BNB-quoted SparkGo burns only — see note below
+  totalCallerRewardsPaid: BigInt! # native-BNB-quoted SparkGo burns only — see note below
   totalTokensBurned: BigInt!
   ctoApplications: BigInt!
   ctoApprovals: BigInt!
   ctoRejections: BigInt!
-  totalSwaps: BigInt! # includes both SparkV2 (Pool) and SparkV1 (PoolV1) swaps
+  totalSwaps: BigInt! # includes both SparkLauncher (SwapV1) and SparkGo (SwapGo) swaps
   totalBuys: BigInt!
   totalSells: BigInt!
-  totalVolumeNative: BigInt! # SparkV2 only — see below
+  totalVolumeNative: BigInt! # native-BNB-quoted SparkGo swaps only — see note below
 }
-# totalVolumeNative deliberately excludes SparkV1 swap volume: SparkV1 pools can be quoted in
-# WBNB, USDT, USDC or USD1 (see QuoteToken), so summing their deltas into one native-BNB-wei
-# figure would silently mix incompatible units/decimals. Per-quote-token V1 volume lives on
-# PoolV1.totalVolumeQuote instead.
+# totalVolumeNative/totalNativeBurnedIn/totalCallerRewardsPaid deliberately exclude anything
+# quoted in a non-native currency: SparkLauncher (V1) pools can be quoted in WBNB, USDT, USDC,
+# USD1 etc (see QuoteToken), and SparkGo pools are equally currency-general now (see
+# QuoteTokenGo) — summing deltas from different quote currencies into one native-BNB-wei figure
+# would silently mix incompatible units/decimals. These three fields are only incremented when
+# the specific swap/burn's quote currency is literally native BNB (address(0) for SparkGo).
+# Per-pool/per-quote-token volume is always available unconditionally on PoolV1.totalVolumeQuote
+# and PoolGo.totalVolumeQuote instead.
+
+# ─── SparkGo (BSC) ───────────────────────────────────────────────────────────
+# The hook-gated Uniswap v4 / PancakeSwap Infinity launcher family — renamed from
+# SparkLauncherV2 and rebuilt as an upgradeable UUPS proxy, currency-general (arbitrary quote
+# tokens, not just native BNB) with a shared multi-hop fallback routing engine for instant-buy.
+# The pre-rebuild SparkLauncherV2/SparkHookV4/SparkHookInfinity/SparkBurner (and their 2 real
+# historical launches) were superseded and are intentionally no longer indexed — see
+# Deployment.md's "Superseded / abandoned addresses" section.
 
 """
-SparkLauncherV2 — one row per deployed launcher (there is one active launcher
-per Deployment.md, but the schema does not assume singularity).
+SparkGo — one row per deployed launcher (there is one active launcher per Deployment.md, but
+the schema does not assume singularity).
 """
-type Launcher @entity(immutable: false) {
+type LauncherGo @entity(immutable: false) {
   id: Bytes! # launcher contract address
   owner: Bytes!
+  weth: Bytes! # only used to wrap native for V3/V2-style fallback routes
   tokenImpl: Bytes!
   locker: Bytes!
   launchFeeWallet: Bytes!
   burner: Bytes
   launchFee: BigInt!
-  marketCapRef: BigInt!
   tokensLaunchedCount: BigInt!
   createdAtBlock: BigInt!
   createdAtTimestamp: BigInt!
   updatedAtBlock: BigInt!
   updatedAtTimestamp: BigInt!
-  dexes: [Dex!]! @derivedFrom(field: "launcher")
-  tokens: [Token!]! @derivedFrom(field: "launcher")
+  dexes: [DexGo!]! @derivedFrom(field: "launcher")
+  quoteTokens: [QuoteTokenGo!]! @derivedFrom(field: "launcher")
+  tokens: [TokenGo!]! @derivedFrom(field: "launcher")
 }
 
 """
-A DEX registered on the launcher via addDex/disableDex — keyed by position manager.
+A DEX registered on SparkGo via addDex/disableDex — keyed by position manager.
 """
-type Dex @entity(immutable: false) {
+type DexGo @entity(immutable: false) {
   id: Bytes! # positionManager address
-  launcher: Launcher!
+  launcher: LauncherGo!
   protocol: Protocol!
   singleton: Bytes! # PoolManager (v4) or Vault (Infinity)
   poolLogic: Bytes # CLPoolManager, Infinity only
@@ -86,16 +99,37 @@ type Dex @entity(immutable: false) {
   addedAtTimestamp: BigInt!
   updatedAtBlock: BigInt!
   updatedAtTimestamp: BigInt!
-  tokens: [Token!]! @derivedFrom(field: "dex")
+  tokens: [TokenGo!]! @derivedFrom(field: "dex")
 }
 
 """
-One row per launched SparkToken (EIP-1167 clone of the SparkToken implementation).
+A quote token registered on SparkGo via addQuoteToken/disableQuoteToken. id is the token
+address; address(0) (native BNB) is auto-registered at initialize() and always exists.
 """
-type Token @entity(immutable: false) {
+type QuoteTokenGo @entity(immutable: false) {
+  id: Bytes! # quote token address, or the zero address for native BNB
+  launcher: LauncherGo!
+  marketCapRef: BigInt!
+  enabled: Boolean!
+  routeCount: BigInt! # number of configured SparkRouting fallback routes (setRoutes)
+  routesUpdatedAtBlock: BigInt
+  routesUpdatedAtTimestamp: BigInt
+  addedAtBlock: BigInt!
+  addedAtTimestamp: BigInt!
+  updatedAtBlock: BigInt!
+  updatedAtTimestamp: BigInt!
+  tokens: [TokenGo!]! @derivedFrom(field: "quoteToken")
+  routeSuccesses: [RouteSuccessGo!]! @derivedFrom(field: "quoteToken")
+}
+
+"""
+One row per launched SparkToken (EIP-1167 clone of the SparkToken implementation) via SparkGo.
+"""
+type TokenGo @entity(immutable: false) {
   id: Bytes! # token clone address
-  launcher: Launcher!
-  dex: Dex!
+  launcher: LauncherGo!
+  dex: DexGo!
+  quoteToken: QuoteTokenGo!
   name: String
   symbol: String
   decimals: Int
@@ -106,6 +140,8 @@ type Token @entity(immutable: false) {
   routedToBurner: Boolean! # true if feeWallet_ passed to launch() was address(0)
   currentOwner: Bytes # null once renounced (launch() always renounces at the end)
   renounced: Boolean!
+  instantBuySkipped: Boolean! # true if an instant-buy leg failed and was skipped + refunded
+  instantBuySkippedRefundWei: BigInt # set only when instantBuySkipped is true
   hook: Bytes!
   protocol: Protocol!
   poolId: Bytes!
@@ -116,51 +152,74 @@ type Token @entity(immutable: false) {
   launchTx: Bytes!
   holderCount: BigInt!
   transferCount: BigInt!
-  pool: Pool @derivedFrom(field: "token")
-  lockerPosition: LockerPosition @derivedFrom(field: "token")
-  burns: [Burn!]! @derivedFrom(field: "token")
-  holders: [TokenHolder!]! @derivedFrom(field: "token")
-  swaps: [Swap!]! @derivedFrom(field: "token")
+  pool: PoolGo @derivedFrom(field: "token")
+  lockerPosition: LockerPositionGo @derivedFrom(field: "token")
+  burns: [BurnGo!]! @derivedFrom(field: "token")
+  holders: [TokenHolderGo!]! @derivedFrom(field: "token")
+  swaps: [SwapGo!]! @derivedFrom(field: "token")
 }
 
 """
-A hook-side pool registration (SparkHookV4.PoolRegistered / SparkHookInfinity.PoolRegistered),
-enriched with running buy/sell activity captured from the hook's own afterSwap call (see Swap
-below for why a call handler is used instead of an event). Every token launched through
-SparkLauncherV2 gets exactly one Pool row, created in the same transaction as the launch.
-id is the on-chain poolId (bytes32), which is already unique per hook+token pair.
+SparkRouting.RouteSucceeded — one per successful leg-1 fallback route execution (native BNB ->
+quoteToken) during a SparkGo launch's instant-buy. Fired inside the same executeRoute try/catch
+loop that SparkRouting._acquireQuoteToken runs through the configured Route[] for a quote token
+until one succeeds (or all fail, see InstantBuySkipped on TokenGo).
 """
-type Pool @entity(immutable: false) {
+type RouteSuccessGo @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  quoteToken: QuoteTokenGo!
+  routeIndex: BigInt! # index into the quote token's configured Route[] (setRoutes) that succeeded
+  amountOut: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
+"""
+A hook-side pool registration (SparkGoHookV4.PoolRegistered / SparkGoHookInfinity.PoolRegistered),
+enriched with running buy/sell activity captured from the hook's own afterSwap call (see SwapGo
+below for why a call handler is used instead of an event). Every token launched through SparkGo
+gets exactly one PoolGo row, created in the same transaction as the launch. id is the on-chain
+poolId (bytes32), which is already unique per hook+token pair.
+
+Unlike the pre-rebuild SparkLauncherV2 (which always paired the token against native BNB as
+currency0), SparkGo is currency-general — currency0 is whichever of (quoteToken, token) sorts
+lower — so quoteToken/tokenIsCurrency0 (read via eth_call from the hook's own `pools()` getter
+at registration time) are needed to correctly derive buy/sell side and volume; see SwapGo.
+"""
+type PoolGo @entity(immutable: false) {
   id: Bytes! # poolId
-  token: Token!
+  token: TokenGo!
+  quoteToken: QuoteTokenGo!
+  tokenIsCurrency0: Boolean!
   hook: Bytes!
   protocol: Protocol!
   creator: Bytes! # may change via CTO approval
   registeredAtBlock: BigInt!
   registeredAtTimestamp: BigInt!
   registeredAtTx: Bytes!
-  totalFeesClaimed: BigInt!
+  totalFeesClaimed: BigInt! # in quoteToken units — see QuoteTokenGo
   claimCount: BigInt!
   pendingCTOApplicationId: String
   # Running swap (buy/sell) activity, updated from the hook's afterSwap call.
   swapCount: BigInt!
   buyCount: BigInt!
   sellCount: BigInt!
-  totalVolumeNative: BigInt! # sum of abs(native BNB delta) across all swaps
+  totalVolumeQuote: BigInt! # sum of abs(quote-currency delta) across all swaps — NOT necessarily BNB, see quoteToken
   totalVolumeToken: BigInt! # sum of abs(token delta) across all swaps
-  totalHookFeeTaken: BigInt! # sum of the hook's 2% native-BNB sell fee across all swaps
+  totalHookFeeTaken: BigInt! # sum of the hook's 2% sell fee across all swaps, in quoteToken units
   lastSwapBlock: BigInt
   lastSwapTimestamp: BigInt
-  feeClaims: [HookFeeClaim!]! @derivedFrom(field: "pool")
-  swaps: [Swap!]! @derivedFrom(field: "pool")
+  feeClaims: [HookFeeClaimGo!]! @derivedFrom(field: "pool")
+  swaps: [SwapGo!]! @derivedFrom(field: "pool")
 }
 
 """
-SparkLocker.registerPosition — the permanent LP-NFT record for a launched token.
+SparkLocker.registerPosition (SparkGo's instance) — the permanent LP-NFT record for a launched token.
 """
-type LockerPosition @entity(immutable: false) {
+type LockerPositionGo @entity(immutable: false) {
   id: Bytes! # token address
-  token: Token!
+  token: TokenGo!
   tokenId: BigInt!
   feeWallet: Bytes! # may change via CTO approval
   currency0: Bytes!
@@ -176,15 +235,15 @@ type LockerPosition @entity(immutable: false) {
   totalPlatform1: BigInt!
   claimCount: BigInt!
   pendingCTOApplicationId: String
-  feeClaims: [LockerFeeClaim!]! @derivedFrom(field: "position")
+  feeClaims: [LockerFeeClaimGo!]! @derivedFrom(field: "position")
 }
 
 """
-SparkLocker.claimFees — one per FeesClaimed event.
+SparkLocker.claimFees (SparkGo's instance) — one per FeesClaimed event.
 """
-type LockerFeeClaim @entity(immutable: true) {
+type LockerFeeClaimGo @entity(immutable: true) {
   id: Bytes! # tx hash - log index
-  position: LockerPosition!
+  position: LockerPositionGo!
   feeWallet: Bytes!
   creator0: BigInt!
   creator1: BigInt!
@@ -196,11 +255,11 @@ type LockerFeeClaim @entity(immutable: true) {
 }
 
 """
-SparkHookV4/SparkHookInfinity.claimFees — one per FeesClaimed event.
+SparkGoHookV4/SparkGoHookInfinity.claimFees — one per FeesClaimed event.
 """
-type HookFeeClaim @entity(immutable: true) {
+type HookFeeClaimGo @entity(immutable: true) {
   id: Bytes! # tx hash - log index
-  pool: Pool!
+  pool: PoolGo!
   amount: BigInt!
   blockNumber: BigInt!
   timestamp: BigInt!
@@ -208,17 +267,18 @@ type HookFeeClaim @entity(immutable: true) {
 }
 
 """
-Community takeover application, tracked across SparkLocker, SparkHookV4 and
-SparkHookInfinity. Each applyForCTO overwrites any prior pending application
-for the same key on-chain, so status transitions (PENDING -> APPROVED/REJECTED)
-are resolved via Pool.pendingCTOApplicationId / LockerPosition.pendingCTOApplicationId.
+Community takeover application, tracked across both SparkLocker instances and both SparkGo
+hooks. Each applyForCTO overwrites any prior pending application for the same key on-chain, so
+status transitions (PENDING -> APPROVED/REJECTED) are resolved via
+PoolGo.pendingCTOApplicationId / LockerPositionGo.pendingCTOApplicationId /
+LockerPositionV1.pendingCTOApplicationId.
 """
 type CTOApplication @entity(immutable: false) {
   id: ID! # source-txHash-logIndex
   source: CTOSource!
-  token: Token
-  pool: Pool
-  position: LockerPosition
+  tokenGo: TokenGo # set when source is LOCKER_GO/HOOK_V4_GO/HOOK_INFINITY_GO
+  poolGo: PoolGo # set when source is HOOK_V4_GO/HOOK_INFINITY_GO
+  positionGo: LockerPositionGo # set when source is LOCKER_GO
   tokenV1: TokenV1 # set when source is LOCKER_V1
   positionV1: LockerPositionV1 # set when source is LOCKER_V1
   applicant: Bytes!
@@ -234,14 +294,15 @@ type CTOApplication @entity(immutable: false) {
 }
 
 """
-SparkBurner.burnV4 / burnInfinity — claims a token's accrued hook fees, swaps
-95% into the token and sends it to 0x...dEaD, pays the caller the other 5%.
+SparkGoBurner.burnV4 / burnInfinity — claims a token's accrued hook fees (in whatever currency
+the pool uses), swaps 95% into the token and sends it to 0x...dEaD, pays the caller the other 5%.
 """
-type Burn @entity(immutable: true) {
+type BurnGo @entity(immutable: true) {
   id: Bytes! # tx hash - log index
-  token: Token!
+  token: TokenGo!
+  quoteCurrency: Bytes! # currency the burned fees were denominated in (address(0) = native BNB)
   caller: Bytes!
-  nativeIn: BigInt!
+  quoteIn: BigInt!
   callerReward: BigInt!
   tokenBurned: BigInt!
   blockNumber: BigInt!
@@ -250,21 +311,21 @@ type Burn @entity(immutable: true) {
 }
 
 """
-Current balance of one holder of one launched token, maintained from Transfer events.
+Current balance of one holder of one SparkGo-launched token, maintained from Transfer events.
 """
-type TokenHolder @entity(immutable: false) {
+type TokenHolderGo @entity(immutable: false) {
   id: Bytes! # token address - holder address
-  token: Token!
+  token: TokenGo!
   holder: Bytes!
   balance: BigInt!
 }
 
 """
-Raw ERC-20 Transfer log for a launched token.
+Raw ERC-20 Transfer log for a SparkGo-launched token.
 """
-type TokenTransfer @entity(immutable: true) {
+type TokenTransferGo @entity(immutable: true) {
   id: Bytes! # tx hash - log index
-  token: Token!
+  token: TokenGo!
   from: Bytes!
   to: Bytes!
   value: BigInt!
@@ -274,49 +335,49 @@ type TokenTransfer @entity(immutable: true) {
 }
 
 """
-A single swap (buy or sell) against a Spark-launched token's pool. Neither SparkHookV4 nor
-SparkHookInfinity emits a per-swap event, but the pool's hook address is part of the pool's
-identity (baked into its poolId) — Uniswap v4 / PancakeSwap Infinity invoke the hook's
-afterSwap on every single swap against that pool, with no way to bypass it. So Swap rows are
-captured via an afterSwap call handler (see subgraph.yaml) rather than a log event: the
-`delta` argument passed into afterSwap is the same BalanceDelta the DEX singleton itself
-would have put in a Swap event, packed as (int128 amount0 << 128) | uint128(amount1) — see
-https://github.com/Uniswap/v4-core/blob/main/src/types/BalanceDelta.sol. Every Spark pool
-always pairs the token against native BNB as currency0, so side/volume are derived directly
-from the sign of amount0: the pool receiving BNB (amount0 > 0) means someone bought the token;
-the pool paying out BNB (amount0 < 0) means someone sold it.
+A single swap (buy or sell) against a SparkGo-launched token's pool. Neither SparkGoHookV4 nor
+SparkGoHookInfinity emits a per-swap event, but the pool's hook address is part of the pool's
+identity (baked into its poolId) — Uniswap v4 / PancakeSwap Infinity invoke the hook's afterSwap
+on every single swap against that pool, with no way to bypass it. So SwapGo rows are captured via
+an afterSwap call handler (see subgraph.yaml) rather than a log event: the `delta` argument
+passed into afterSwap is the same BalanceDelta the DEX singleton itself would have put in a Swap
+event, packed as (int128 amount0 << 128) | uint128(amount1) — see
+https://github.com/Uniswap/v4-core/blob/main/src/types/BalanceDelta.sol.
+
+Unlike the pre-rebuild SparkLauncherV2, SparkGo pools do NOT always pair the token against
+native BNB as currency0 — currency0 is whichever of (quoteToken, token) sorts lower (see
+PoolGo). So side/volume are derived from PoolGo.tokenIsCurrency0, not a hardcoded amount0.
 """
-type Swap @entity(immutable: true) {
+type SwapGo @entity(immutable: true) {
   id: Bytes! # tx hash + pool id + per-pool swap sequence number (calls have no log index)
-  pool: Pool!
-  token: Token!
+  pool: PoolGo!
+  token: TokenGo!
   protocol: Protocol!
   side: SwapSide!
   sender: Bytes! # immediate caller of PoolManager/CLPoolManager.swap() — often a router
   origin: Bytes! # tx.from — the wallet that actually initiated the trade
-  amount0: BigInt! # signed native BNB delta on the pool
-  amount1: BigInt! # signed token delta on the pool
-  nativeAmount: BigInt! # abs(amount0)
-  tokenAmount: BigInt! # abs(amount1)
-  hookFeeTaken: BigInt! # the hook's 2% native-BNB cut on this swap (0 unless it was a sell)
+  amount0: BigInt! # signed currency0 delta on the pool
+  amount1: BigInt! # signed currency1 delta on the pool
+  quoteAmount: BigInt! # abs(quote-currency delta)
+  tokenAmount: BigInt! # abs(token delta)
+  hookFeeTaken: BigInt! # the hook's 2% sell fee on this swap, in quoteToken units (0 unless it was a sell)
   blockNumber: BigInt!
   timestamp: BigInt!
   txHash: Bytes!
 }
 
-# ─── SparkV1 (BSC) ───────────────────────────────────────────────────────────
-# A second, independent 1MEME Spark deployment (spark/SparkLauncher.sol), launched after
-# SparkV2 specifically to fix a tradability gap: SparkV2's Uniswap v4 / PancakeSwap Infinity
-# pools use a custom hook that most DEX frontends/routers don't discover, so SparkV1 seeds
-# liquidity into plain Uniswap V3 / PancakeSwap V3 pools instead (standard fee-tier system,
-# no hook). It also supports multiple quote tokens (WBNB, USDT, USDC, USD1), each with its
-# own marketCapRef, instead of SparkV2's single BNB-only marketCapRef. It reuses the same
-# SparkLocker/SparkToken contracts as SparkV2 (byte-identical, per Deployment.md) but as
-# separate deployed instances, so — like OneCoinLocker above — it gets its own parallel set
-# of entities below rather than reusing Launcher/Dex/Token/Pool/LockerPosition/
-# LockerFeeClaim, which carry SparkV2-specific (hook/protocol/poolId) fields that don't
-# apply here. CTOApplication is shared (see tokenV1/positionV1 fields above) since it was
-# already built to be source-polymorphic across the locker/hook flows.
+# ─── SparkLauncher / V1 (BSC) ────────────────────────────────────────────────
+# The plain Uniswap V3 / PancakeSwap V3 launcher family — no hook, so tokens are tradeable
+# through either DEX's normal swap interface. Originally deployed non-upgradeable (0 real
+# launches, superseded — not indexed), then rebuilt as the upgradeable UUPS proxy indexed here.
+# Currency-general from the start (WBNB, USDT, USDC, USD1, etc, each with its own
+# marketCapRef), unlike SparkGo above which only became currency-general in the same rebuild.
+# It reuses the same SparkLocker/SparkToken contracts as SparkGo (byte-identical, per
+# Deployment.md) but as a separate deployed instance, so — like OneCoinLocker below — it gets
+# its own parallel set of entities rather than reusing the SparkGo entities above, which carry
+# SparkGo-specific (hook/protocol/poolId) fields that don't apply here. CTOApplication is
+# shared (see tokenV1/positionV1 fields above) since it was already built to be
+# source-polymorphic across both locker instances and both hooks.
 
 """
 SparkLauncher (V1) — one row per deployed V1 launcher.
@@ -366,11 +427,31 @@ type QuoteToken @entity(immutable: false) {
   marketCapRef: BigInt!
   wethPairFee: Int! # deepest WETH/WBNB pool fee tier for this quote token on the DEX, 0 for weth itself
   enabled: Boolean!
+  routeCount: BigInt! # number of configured SparkRouting fallback routes (setRoutes)
+  routesUpdatedAtBlock: BigInt
+  routesUpdatedAtTimestamp: BigInt
   addedAtBlock: BigInt!
   addedAtTimestamp: BigInt!
   updatedAtBlock: BigInt!
   updatedAtTimestamp: BigInt!
   tokens: [TokenV1!]! @derivedFrom(field: "quoteToken")
+  routeSuccesses: [RouteSuccess!]! @derivedFrom(field: "quoteToken")
+}
+
+"""
+SparkRouting.RouteSucceeded — one per successful leg-1 fallback route execution (native BNB ->
+quoteToken) during a SparkLauncher launch's instant-buy. Fired inside the same executeRoute
+try/catch loop that SparkRouting._acquireQuoteToken runs through the configured Route[] for a
+quote token until one succeeds (or all fail, see InstantBuySkipped on TokenV1).
+"""
+type RouteSuccess @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  quoteToken: QuoteToken!
+  routeIndex: BigInt! # index into the quote token's configured Route[] (setRoutes) that succeeded
+  amountOut: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
 }
 
 """
@@ -390,6 +471,8 @@ type TokenV1 @entity(immutable: false) {
   feeWallet: Bytes!
   currentOwner: Bytes # null once renounced (launch() always renounces at the end)
   renounced: Boolean!
+  instantBuySkipped: Boolean! # true if an instant-buy leg failed and was skipped + refunded
+  instantBuySkippedRefundWei: BigInt # set only when instantBuySkipped is true
   positionManager: Bytes!
   lockerTokenId: BigInt!
   launchBlock: BigInt!
@@ -405,14 +488,14 @@ type TokenV1 @entity(immutable: false) {
 
 """
 The plain Uniswap V3 / PancakeSwap V3 pool seeded by SparkLauncher.launch() for a TokenV1 —
-unlike SparkV2's hook-registered Pool, there's no PoolRegistered event for this; it's created
+unlike SparkGo's hook-registered PoolGo, there's no PoolRegistered event for this; it's created
 inline in the same handleTokenLaunched that creates TokenV1, using the `pool` address emitted
 by TokenLaunched. Since V1 has no hook, swap activity can't be captured via a call handler the
-way SparkHookV4/SparkHookInfinity's afterSwap is — instead a SparkV1Pool template data source
-is spawned at this exact pool address (see subgraph.yaml), listening to that one pool's own
-standard Swap event. That's naturally scoped to just this pool (unlike the DEX-wide V3 Factory,
-which has no per-pool filtering), since a template instance only ever tracks the single address
-it was created at.
+way SparkGoHookV4/SparkGoHookInfinity's afterSwap is — instead a SparkV1Pool template data
+source is spawned at this exact pool address (see subgraph.yaml), listening to that one pool's
+own standard Swap event. That's naturally scoped to just this pool (unlike the DEX-wide V3
+Factory, which has no per-pool filtering), since a template instance only ever tracks the
+single address it was created at.
 """
 type PoolV1 @entity(immutable: false) {
   id: Bytes! # pool address
@@ -439,9 +522,9 @@ type PoolV1 @entity(immutable: false) {
 
 """
 A single swap (buy or sell) against a TokenV1's pool, captured directly from the pool
-contract's own Swap event (see PoolV1 above for why this works cleanly for V1 but not V2).
-side/quoteAmount are derived from PoolV1.quoteIsToken0: the pool receiving the quote token
-means someone bought the Spark token; the pool paying out the quote token means someone sold it.
+contract's own Swap event (see PoolV1 above for why this works cleanly for V1). side/quoteAmount
+are derived from PoolV1.quoteIsToken0: the pool receiving the quote token means someone bought
+the Spark token; the pool paying out the quote token means someone sold it.
 """
 type SwapV1 @entity(immutable: true) {
   id: Bytes! # tx hash - log index

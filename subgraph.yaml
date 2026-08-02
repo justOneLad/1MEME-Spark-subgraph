@@ -1,10 +1,16 @@
 specVersion: 1.0.0
 description: >-
-  Subgraph for 1MEME Spark on BSC mainnet, covering both active deployments:
-  SparkV2 (SparkLauncherV2, SparkLocker, SparkHookV4, SparkHookInfinity and
-  SparkBurner) and SparkV1 (SparkLauncher plus a second SparkLocker instance),
-  plus dynamically templated SparkToken clones created by each launch on
-  either version. See
+  Subgraph for 1MEME Spark on BSC mainnet, covering both active launcher
+  families per Deployment.md: SparkLauncher (V1) — a currency-general,
+  upgradeable Uniswap V3 / PancakeSwap V3 launcher, plus its SparkLocker
+  instance — and SparkGo — a currency-general, upgradeable Uniswap v4 /
+  PancakeSwap Infinity hook-gated launcher (renamed from SparkLauncherV2),
+  plus its own SparkLocker instance, SparkGoHookV4, SparkGoHookInfinity and
+  SparkGoBurner. Also dynamically templated SparkToken clones created by
+  each launch on either family. The pre-rebuild, non-upgradeable SparkLauncher
+  (0 real launches) and the pre-rebuild SparkLauncherV2/SparkHookV4/
+  SparkHookInfinity/SparkBurner (superseded, cut over per Deployment.md) are
+  intentionally not indexed. See
   https://github.com/justOneLad/1MEME-Spark/blob/main/Deployment.md. Also
   includes OneCoinLocker, a general-purpose BSC token/LP locker unrelated to
   Spark, ported from timedbase/OneMEMELaunchpad-Subgraph.
@@ -53,179 +59,12 @@ dataSources:
           handler: handleFeesCollected
       file: ./src/onecoin-locker.ts
   - kind: ethereum
-    name: SparkLauncherV2
-    network: bsc
-    source:
-      address: "0xcD5B9F286cd5A2cE2fBe160bAfc018a1159d5c77"
-      abi: SparkLauncherV2
-      startBlock: 113277608
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - Launcher
-        - Dex
-        - Token
-        - SparkStats
-      abis:
-        - name: SparkLauncherV2
-          file: ./abis/SparkLauncherV2.json
-        - name: SparkToken
-          file: ./abis/SparkToken.json
-      eventHandlers:
-        - event: TokenLaunched(indexed address,indexed address,indexed address,address,address,bytes32,uint256)
-          handler: handleTokenLaunched
-        - event: DexAdded(indexed address,uint8,address,address,address,address)
-          handler: handleDexAdded
-        - event: DexDisabled(indexed address)
-          handler: handleDexDisabled
-        - event: LaunchFeeWalletSet(indexed address)
-          handler: handleLaunchFeeWalletSet
-        - event: BurnerSet(indexed address)
-          handler: handleBurnerSet
-        - event: LaunchFeeSet(uint256)
-          handler: handleLaunchFeeSet
-        - event: MarketCapRefSet(uint256)
-          handler: handleMarketCapRefSet
-      file: ./src/launcher.ts
-  - kind: ethereum
-    name: SparkLocker
-    network: bsc
-    source:
-      address: "0x01245e814bbc3A1DC3b24924FB0E4E3b6863105B"
-      abi: SparkLocker
-      startBlock: 113277603
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - LockerPosition
-        - LockerFeeClaim
-        - CTOApplication
-        - SparkStats
-      abis:
-        - name: SparkLocker
-          file: ./abis/SparkLocker.json
-      eventHandlers:
-        - event: PositionRegistered(indexed address,indexed uint256,address,address,address)
-          handler: handlePositionRegistered
-        - event: FeesClaimed(indexed address,indexed address,uint256,uint256,uint256,uint256)
-          handler: handleFeesClaimed
-        - event: CTOApplied(indexed address,indexed address,address,uint256)
-          handler: handleCTOApplied
-        - event: CTOApproved(indexed address,address)
-          handler: handleCTOApproved
-        - event: CTORejected(indexed address,indexed address)
-          handler: handleCTORejected
-      file: ./src/locker.ts
-  - kind: ethereum
-    name: SparkHookV4
-    network: bsc
-    source:
-      address: "0x8baB0D3049B6d5D17B36d3263786Fe587A9D00C4"
-      abi: SparkHookV4
-      startBlock: 113278869
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - Pool
-        - HookFeeClaim
-        - CTOApplication
-        - SparkStats
-        - Swap
-      abis:
-        - name: SparkHookV4
-          file: ./abis/SparkHookV4.json
-      eventHandlers:
-        - event: PoolRegistered(indexed bytes32,indexed address,indexed address)
-          handler: handlePoolRegistered
-        - event: FeesClaimed(indexed bytes32,uint256)
-          handler: handleFeesClaimed
-        - event: CTOApplied(indexed bytes32,indexed address,address,uint256)
-          handler: handleCTOApplied
-        - event: CTOApproved(indexed bytes32,address)
-          handler: handleCTOApproved
-        - event: CTORejected(indexed bytes32,indexed address)
-          handler: handleCTORejected
-      # afterSwap is called by the Uniswap v4 PoolManager on EVERY swap against
-      # a Spark pool — the hook address is baked into the pool's identity, so
-      # there is no way to trade on one of these pools without going through
-      # it. Neither hook emits a per-swap event, so a call handler is the only
-      # way to capture buy/sell activity; it's naturally scoped to just this
-      # contract (unlike the shared, chain-wide PoolManager Swap event).
-      callHandlers:
-        - function: afterSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),int256,bytes)
-          handler: handleAfterSwap
-      file: ./src/hook-v4.ts
-  - kind: ethereum
-    name: SparkHookInfinity
-    network: bsc
-    source:
-      address: "0xad220d84F318Ca4941D07af5AF244f081Cb849A8"
-      abi: SparkHookInfinity
-      startBlock: 113278027
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - Pool
-        - HookFeeClaim
-        - CTOApplication
-        - SparkStats
-        - Swap
-      abis:
-        - name: SparkHookInfinity
-          file: ./abis/SparkHookInfinity.json
-      eventHandlers:
-        - event: PoolRegistered(indexed bytes32,indexed address,indexed address)
-          handler: handlePoolRegistered
-        - event: FeesClaimed(indexed bytes32,uint256)
-          handler: handleFeesClaimed
-        - event: CTOApplied(indexed bytes32,indexed address,address,uint256)
-          handler: handleCTOApplied
-        - event: CTOApproved(indexed bytes32,address)
-          handler: handleCTOApproved
-        - event: CTORejected(indexed bytes32,indexed address)
-          handler: handleCTORejected
-      # Same rationale as SparkHookV4 above: afterSwap is invoked by the
-      # PancakeSwap Infinity CLPoolManager on every swap against a Spark pool.
-      callHandlers:
-        - function: afterSwap(address,(address,address,address,address,uint24,bytes32),(bool,int256,uint160),int256,bytes)
-          handler: handleAfterSwap
-      file: ./src/hook-infinity.ts
-  - kind: ethereum
-    name: SparkBurner
-    network: bsc
-    source:
-      address: "0x34480Bcd62D0bed99E2782cCAaF90c31A7fB475E"
-      abi: SparkBurner
-      startBlock: 113278035
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - Burn
-        - SparkStats
-      abis:
-        - name: SparkBurner
-          file: ./abis/SparkBurner.json
-      eventHandlers:
-        - event: Burned(indexed address,indexed address,uint256,uint256,uint256)
-          handler: handleBurned
-      file: ./src/burner.ts
-  - kind: ethereum
     name: SparkLauncherV1
     network: bsc
     source:
-      address: "0x1Bfc2A7d68A115B29906537D9E836A1799ebd3C4"
+      address: "0xC10b8647B7d0d88B77C0A9FfAD5C7C17564B1973"
       abi: SparkLauncher
-      startBlock: 113379808
+      startBlock: 113582648
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -236,6 +75,7 @@ dataSources:
         - QuoteToken
         - TokenV1
         - PoolV1
+        - RouteSuccess
       abis:
         - name: SparkLauncher
           file: ./abis/SparkLauncher.json
@@ -260,6 +100,12 @@ dataSources:
           handler: handleLaunchFeeSet
         - event: MarketCapRefSet(indexed address,uint256)
           handler: handleMarketCapRefSet
+        - event: InstantBuySkipped(indexed address,uint256)
+          handler: handleInstantBuySkipped
+        - event: RoutesSet(indexed address,uint256)
+          handler: handleRoutesSet
+        - event: RouteSucceeded(indexed address,indexed uint256,uint256)
+          handler: handleRouteSucceeded
       file: ./src/launcher-v1.ts
   - kind: ethereum
     name: SparkLockerV1
@@ -291,31 +137,188 @@ dataSources:
         - event: CTORejected(indexed address,indexed address)
           handler: handleCTORejected
       file: ./src/locker-v1.ts
-templates:
   - kind: ethereum
-    name: SparkToken
+    name: SparkGoLauncher
     network: bsc
     source:
-      abi: SparkToken
+      address: "0xC0d33846D04F5Ce0a34AEecE9b6462433EBC8f7C"
+      abi: SparkGoLauncher
+      startBlock: 113583462
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - Token
-        - TokenHolder
-        - TokenTransfer
+        - LauncherGo
+        - DexGo
+        - QuoteTokenGo
+        - TokenGo
+        - RouteSuccessGo
       abis:
+        - name: SparkGoLauncher
+          file: ./abis/SparkGoLauncher.json
         - name: SparkToken
           file: ./abis/SparkToken.json
       eventHandlers:
-        - event: Transfer(indexed address,indexed address,uint256)
-          handler: handleTransfer
-        - event: OwnershipTransferred(indexed address,indexed address)
-          handler: handleOwnershipTransferred
-        - event: MetaURISet(string)
-          handler: handleMetaURISet
-      file: ./src/token.ts
+        - event: TokenLaunched(indexed address,indexed address,indexed address,address,address,address,bytes32,uint256)
+          handler: handleTokenLaunched
+        - event: DexAdded(indexed address,uint8,address,address,address,address)
+          handler: handleDexAdded
+        - event: DexDisabled(indexed address)
+          handler: handleDexDisabled
+        - event: QuoteTokenAdded(indexed address,uint256)
+          handler: handleQuoteTokenAdded
+        - event: QuoteTokenDisabled(indexed address)
+          handler: handleQuoteTokenDisabled
+        - event: LaunchFeeWalletSet(indexed address)
+          handler: handleLaunchFeeWalletSet
+        - event: BurnerSet(indexed address)
+          handler: handleBurnerSet
+        - event: LaunchFeeSet(uint256)
+          handler: handleLaunchFeeSet
+        - event: MarketCapRefSet(indexed address,uint256)
+          handler: handleMarketCapRefSet
+        - event: InstantBuySkipped(indexed address,uint256)
+          handler: handleInstantBuySkipped
+        - event: RoutesSet(indexed address,uint256)
+          handler: handleRoutesSet
+        - event: RouteSucceeded(indexed address,indexed uint256,uint256)
+          handler: handleRouteSucceeded
+      file: ./src/launcher-go.ts
+  - kind: ethereum
+    name: SparkLockerGo
+    network: bsc
+    source:
+      address: "0x01245e814bbc3A1DC3b24924FB0E4E3b6863105B"
+      abi: SparkLocker
+      # SparkLocker.setLauncher(SparkGoLauncher proxy) — this locker instance predates SparkGo
+      # (it was originally paired with the now-superseded SparkLauncherV2) but is reused, per
+      # Deployment.md. Starting at the repoint block cleanly excludes the 2 real historical
+      # launches from the superseded launcher, which is intentionally not indexed above.
+      startBlock: 113583466
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - LockerPositionGo
+        - LockerFeeClaimGo
+        - CTOApplication
+      abis:
+        - name: SparkLocker
+          file: ./abis/SparkLocker.json
+      eventHandlers:
+        - event: PositionRegistered(indexed address,indexed uint256,address,address,address)
+          handler: handlePositionRegistered
+        - event: FeesClaimed(indexed address,indexed address,uint256,uint256,uint256,uint256)
+          handler: handleFeesClaimed
+        - event: CTOApplied(indexed address,indexed address,address,uint256)
+          handler: handleCTOApplied
+        - event: CTOApproved(indexed address,address)
+          handler: handleCTOApproved
+        - event: CTORejected(indexed address,indexed address)
+          handler: handleCTORejected
+      file: ./src/locker-go.ts
+  - kind: ethereum
+    name: SparkGoHookV4
+    network: bsc
+    source:
+      address: "0xdF3f8b41a55fb8737D653d6bc7467095e48700c4"
+      abi: SparkGoHookV4
+      startBlock: 113583474
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - PoolGo
+        - HookFeeClaimGo
+        - CTOApplication
+        - SparkStats
+        - SwapGo
+      abis:
+        - name: SparkGoHookV4
+          file: ./abis/SparkGoHookV4.json
+      eventHandlers:
+        - event: PoolRegistered(indexed bytes32,indexed address,indexed address)
+          handler: handlePoolRegistered
+        - event: FeesClaimed(indexed bytes32,uint256)
+          handler: handleFeesClaimed
+        - event: CTOApplied(indexed bytes32,indexed address,address,uint256)
+          handler: handleCTOApplied
+        - event: CTOApproved(indexed bytes32,address)
+          handler: handleCTOApproved
+        - event: CTORejected(indexed bytes32,indexed address)
+          handler: handleCTORejected
+      # afterSwap is called by the Uniswap v4 PoolManager on EVERY swap against
+      # a Spark pool — the hook address is baked into the pool's identity, so
+      # there is no way to trade on one of these pools without going through
+      # it. Neither hook emits a per-swap event, so a call handler is the only
+      # way to capture buy/sell activity; it's naturally scoped to just this
+      # contract (unlike the shared, chain-wide PoolManager Swap event).
+      callHandlers:
+        - function: afterSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),int256,bytes)
+          handler: handleAfterSwap
+      file: ./src/hook-v4-go.ts
+  - kind: ethereum
+    name: SparkGoHookInfinity
+    network: bsc
+    source:
+      address: "0x8E273c882267f034ACE21dA677dBF0c0eB305B82"
+      abi: SparkGoHookInfinity
+      startBlock: 113583482
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - PoolGo
+        - HookFeeClaimGo
+        - CTOApplication
+        - SparkStats
+        - SwapGo
+      abis:
+        - name: SparkGoHookInfinity
+          file: ./abis/SparkGoHookInfinity.json
+      eventHandlers:
+        - event: PoolRegistered(indexed bytes32,indexed address,indexed address)
+          handler: handlePoolRegistered
+        - event: FeesClaimed(indexed bytes32,uint256)
+          handler: handleFeesClaimed
+        - event: CTOApplied(indexed bytes32,indexed address,address,uint256)
+          handler: handleCTOApplied
+        - event: CTOApproved(indexed bytes32,address)
+          handler: handleCTOApproved
+        - event: CTORejected(indexed bytes32,indexed address)
+          handler: handleCTORejected
+      # Same rationale as SparkGoHookV4 above: afterSwap is invoked by the
+      # PancakeSwap Infinity CLPoolManager on every swap against a Spark pool.
+      callHandlers:
+        - function: afterSwap(address,(address,address,address,address,uint24,bytes32),(bool,int256,uint160),int256,bytes)
+          handler: handleAfterSwap
+      file: ./src/hook-infinity-go.ts
+  - kind: ethereum
+    name: SparkGoBurner
+    network: bsc
+    source:
+      address: "0xC99fD815f5C0a5dCf2B6cA36A38AbbB5cF4e4c10"
+      abi: SparkGoBurner
+      startBlock: 113583491
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - BurnGo
+        - SparkStats
+      abis:
+        - name: SparkGoBurner
+          file: ./abis/SparkGoBurner.json
+      eventHandlers:
+        - event: Burned(indexed address,indexed address,indexed address,uint256,uint256,uint256)
+          handler: handleBurned
+      file: ./src/burner-go.ts
+templates:
   - kind: ethereum
     name: SparkTokenV1
     network: bsc
@@ -359,3 +362,27 @@ templates:
         - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
           handler: handleSwap
       file: ./src/pool-v1.ts
+  - kind: ethereum
+    name: SparkTokenGo
+    network: bsc
+    source:
+      abi: SparkToken
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - TokenGo
+        - TokenHolderGo
+        - TokenTransferGo
+      abis:
+        - name: SparkToken
+          file: ./abis/SparkToken.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: MetaURISet(string)
+          handler: handleMetaURISet
+      file: ./src/token-go.ts

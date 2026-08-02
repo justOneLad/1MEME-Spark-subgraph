@@ -6,12 +6,12 @@ import {
   CTOApproved,
   CTORejected,
   SparkLocker,
-} from "../generated/SparkLocker/SparkLocker";
-import { LockerPosition, LockerFeeClaim, CTOApplication } from "../generated/schema";
-import { ZERO_BI, ZERO_ADDRESS, CTO_SOURCE_LOCKER, eventId, getOrCreateStats } from "./helpers";
+} from "../generated/SparkLockerGo/SparkLocker";
+import { LockerPositionGo, LockerFeeClaimGo, CTOApplication } from "../generated/schema";
+import { ZERO_BI, ZERO_ADDRESS, CTO_SOURCE_LOCKER_GO, eventId, getOrCreateStats } from "./helpers";
 
 export function handlePositionRegistered(event: PositionRegistered): void {
-  let position = new LockerPosition(event.params.token);
+  let position = new LockerPositionGo(event.params.token);
   position.token = event.params.token;
   position.tokenId = event.params.tokenId;
   position.feeWallet = event.params.feeWallet;
@@ -41,7 +41,7 @@ export function handlePositionRegistered(event: PositionRegistered): void {
 }
 
 export function handleFeesClaimed(event: FeesClaimed): void {
-  let position = LockerPosition.load(event.params.token);
+  let position = LockerPositionGo.load(event.params.token);
   if (position == null) return;
 
   position.totalCreator0 = position.totalCreator0.plus(event.params.creator0);
@@ -51,7 +51,7 @@ export function handleFeesClaimed(event: FeesClaimed): void {
   position.claimCount = position.claimCount.plus(BigInt.fromI32(1));
   position.save();
 
-  let claim = new LockerFeeClaim(eventId(event));
+  let claim = new LockerFeeClaimGo(eventId(event));
   claim.position = position.id;
   claim.feeWallet = event.params.feeWallet;
   claim.creator0 = event.params.creator0;
@@ -69,13 +69,13 @@ export function handleFeesClaimed(event: FeesClaimed): void {
 }
 
 export function handleCTOApplied(event: CTOApplied): void {
-  let position = LockerPosition.load(event.params.token);
+  let position = LockerPositionGo.load(event.params.token);
 
-  let id = CTO_SOURCE_LOCKER + "-" + eventId(event).toHexString();
+  let id = CTO_SOURCE_LOCKER_GO + "-" + eventId(event).toHexString();
   let application = new CTOApplication(id);
-  application.source = CTO_SOURCE_LOCKER;
-  application.token = event.params.token;
-  application.position = event.params.token;
+  application.source = CTO_SOURCE_LOCKER_GO;
+  application.tokenGo = event.params.token;
+  application.positionGo = event.params.token;
   application.applicant = event.params.applicant;
   application.newRecipient = event.params.newFeeWallet;
   application.paid = event.params.paid;
@@ -96,7 +96,7 @@ export function handleCTOApplied(event: CTOApplied): void {
 }
 
 export function handleCTOApproved(event: CTOApproved): void {
-  let position = LockerPosition.load(event.params.token);
+  let position = LockerPositionGo.load(event.params.token);
   if (position == null) return;
 
   position.feeWallet = event.params.newFeeWallet;
@@ -120,7 +120,7 @@ export function handleCTOApproved(event: CTOApproved): void {
 }
 
 export function handleCTORejected(event: CTORejected): void {
-  let position = LockerPosition.load(event.params.token);
+  let position = LockerPositionGo.load(event.params.token);
   if (position == null) return;
 
   let pendingId = position.pendingCTOApplicationId;

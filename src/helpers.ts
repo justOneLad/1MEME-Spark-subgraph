@@ -9,9 +9,9 @@ export const ZERO_ADDRESS = Address.fromString(
 export const PROTOCOL_UNISWAP_V4 = "UNISWAP_V4";
 export const PROTOCOL_PANCAKE_INFINITY = "PANCAKE_INFINITY";
 
-export const CTO_SOURCE_LOCKER = "LOCKER";
-export const CTO_SOURCE_HOOK_V4 = "HOOK_V4";
-export const CTO_SOURCE_HOOK_INFINITY = "HOOK_INFINITY";
+export const CTO_SOURCE_LOCKER_GO = "LOCKER_GO";
+export const CTO_SOURCE_HOOK_V4_GO = "HOOK_V4_GO";
+export const CTO_SOURCE_HOOK_INFINITY_GO = "HOOK_INFINITY_GO";
 export const CTO_SOURCE_LOCKER_V1 = "LOCKER_V1";
 
 export const SWAP_SIDE_BUY = "BUY";

@@ -3,25 +3,25 @@ import {
   Transfer,
   OwnershipTransferred,
   MetaURISet,
-} from "../generated/templates/SparkToken/SparkToken";
-import { Token, TokenHolder, TokenTransfer } from "../generated/schema";
+} from "../generated/templates/SparkTokenGo/SparkToken";
+import { TokenGo, TokenHolderGo, TokenTransferGo } from "../generated/schema";
 import { ZERO_BI, ZERO_ADDRESS, eventId } from "./helpers";
 
-// NOTE: the SparkToken template data source is only instantiated when the
+// NOTE: the SparkTokenGo template data source is only instantiated when the
 // launcher's TokenLaunched event is handled, which fires at the very end of
 // the launch() transaction — after the initial mint, LP-seeding transfer and
 // any instant-buy transfer have already happened earlier in that same
-// transaction. Dynamic data sources cannot retroactively index events from
+// transaction. Dynamic data sources can't retroactively index events from
 // earlier in the same block, so those launch-time transfers are not reflected
-// in TokenHolder/TokenTransfer/holderCount below (Token.totalSupply is read
+// in TokenHolderGo/TokenTransferGo/holderCount below (TokenGo.totalSupply is read
 // directly from the contract via eth_call instead, so it is always correct).
 // Everything from the first post-launch transfer onward is indexed normally.
 
-function getOrCreateHolder(token: Bytes, holder: Bytes): TokenHolder {
+function getOrCreateHolder(token: Bytes, holder: Bytes): TokenHolderGo {
   let id = token.concat(holder);
-  let existing = TokenHolder.load(id);
-  if (existing != null) return existing as TokenHolder;
-  let created = new TokenHolder(id);
+  let existing = TokenHolderGo.load(id);
+  if (existing != null) return existing as TokenHolderGo;
+  let created = new TokenHolderGo(id);
   created.token = token;
   created.holder = holder;
   created.balance = ZERO_BI;
@@ -29,7 +29,7 @@ function getOrCreateHolder(token: Bytes, holder: Bytes): TokenHolder {
 }
 
 export function handleTransfer(event: Transfer): void {
-  let token = Token.load(event.address);
+  let token = TokenGo.load(event.address);
   if (token == null) return;
 
   let value = event.params.value;
@@ -59,7 +59,7 @@ export function handleTransfer(event: Transfer): void {
   token.transferCount = token.transferCount.plus(BigInt.fromI32(1));
   token.save();
 
-  let transfer = new TokenTransfer(eventId(event));
+  let transfer = new TokenTransferGo(eventId(event));
   transfer.token = event.address;
   transfer.from = event.params.from;
   transfer.to = event.params.to;
@@ -71,7 +71,7 @@ export function handleTransfer(event: Transfer): void {
 }
 
 export function handleOwnershipTransferred(event: OwnershipTransferred): void {
-  let token = Token.load(event.address);
+  let token = TokenGo.load(event.address);
   if (token == null) return;
 
   let isRenounce = event.params.newOwner.equals(ZERO_ADDRESS);
@@ -81,7 +81,7 @@ export function handleOwnershipTransferred(event: OwnershipTransferred): void {
 }
 
 export function handleMetaURISet(event: MetaURISet): void {
-  let token = Token.load(event.address);
+  let token = TokenGo.load(event.address);
   if (token == null) return;
 
   token.metaURI = event.params.uri;

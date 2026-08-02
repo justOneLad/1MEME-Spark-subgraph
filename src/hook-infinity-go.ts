@@ -6,19 +6,21 @@ import {
   CTOApproved,
   CTORejected,
   AfterSwapCall,
-} from "../generated/SparkHookInfinity/SparkHookInfinity";
-import { Pool, HookFeeClaim, CTOApplication } from "../generated/schema";
+  SparkGoHookInfinity,
+} from "../generated/SparkGoHookInfinity/SparkGoHookInfinity";
+import { PoolGo, HookFeeClaimGo, CTOApplication } from "../generated/schema";
 import {
   ZERO_BI,
+  ZERO_ADDRESS,
   PROTOCOL_PANCAKE_INFINITY,
-  CTO_SOURCE_HOOK_INFINITY,
+  CTO_SOURCE_HOOK_INFINITY_GO,
   eventId,
   getOrCreateStats,
 } from "./helpers";
-import { recordSwap } from "./swap-recorder";
+import { recordSwap } from "./swap-recorder-go";
 
 export function handlePoolRegistered(event: PoolRegistered): void {
-  let pool = new Pool(event.params.poolId);
+  let pool = new PoolGo(event.params.poolId);
   pool.token = event.params.token;
   pool.hook = event.address;
   pool.protocol = PROTOCOL_PANCAKE_INFINITY;
@@ -32,21 +34,32 @@ export function handlePoolRegistered(event: PoolRegistered): void {
   pool.swapCount = ZERO_BI;
   pool.buyCount = ZERO_BI;
   pool.sellCount = ZERO_BI;
-  pool.totalVolumeNative = ZERO_BI;
+  pool.totalVolumeQuote = ZERO_BI;
   pool.totalVolumeToken = ZERO_BI;
   pool.totalHookFeeTaken = ZERO_BI;
+
+  let contract = SparkGoHookInfinity.bind(event.address);
+  let info = contract.try_pools(event.params.poolId);
+  if (!info.reverted) {
+    pool.quoteToken = info.value.getQuoteCurrency();
+    pool.tokenIsCurrency0 = info.value.getTokenIsCurrency0();
+  } else {
+    pool.quoteToken = ZERO_ADDRESS;
+    pool.tokenIsCurrency0 = false;
+  }
+
   pool.save();
 }
 
 export function handleFeesClaimed(event: FeesClaimed): void {
-  let pool = Pool.load(event.params.poolId);
+  let pool = PoolGo.load(event.params.poolId);
   if (pool == null) return;
 
   pool.totalFeesClaimed = pool.totalFeesClaimed.plus(event.params.amount);
   pool.claimCount = pool.claimCount.plus(BigInt.fromI32(1));
   pool.save();
 
-  let claim = new HookFeeClaim(eventId(event));
+  let claim = new HookFeeClaimGo(eventId(event));
   claim.pool = pool.id;
   claim.amount = event.params.amount;
   claim.blockNumber = event.block.number;
@@ -60,13 +73,13 @@ export function handleFeesClaimed(event: FeesClaimed): void {
 }
 
 export function handleCTOApplied(event: CTOApplied): void {
-  let pool = Pool.load(event.params.poolId);
+  let pool = PoolGo.load(event.params.poolId);
 
-  let id = CTO_SOURCE_HOOK_INFINITY + "-" + eventId(event).toHexString();
+  let id = CTO_SOURCE_HOOK_INFINITY_GO + "-" + eventId(event).toHexString();
   let application = new CTOApplication(id);
-  application.source = CTO_SOURCE_HOOK_INFINITY;
-  application.pool = event.params.poolId;
-  application.token = pool != null ? pool.token : null;
+  application.source = CTO_SOURCE_HOOK_INFINITY_GO;
+  application.poolGo = event.params.poolId;
+  application.tokenGo = pool != null ? pool.token : null;
   application.applicant = event.params.applicant;
   application.newRecipient = event.params.newCreator;
   application.paid = event.params.paid;
@@ -87,7 +100,7 @@ export function handleCTOApplied(event: CTOApplied): void {
 }
 
 export function handleCTOApproved(event: CTOApproved): void {
-  let pool = Pool.load(event.params.poolId);
+  let pool = PoolGo.load(event.params.poolId);
   if (pool == null) return;
 
   pool.creator = event.params.newCreator;
@@ -111,7 +124,7 @@ export function handleCTOApproved(event: CTOApproved): void {
 }
 
 export function handleCTORejected(event: CTORejected): void {
-  let pool = Pool.load(event.params.poolId);
+  let pool = PoolGo.load(event.params.poolId);
   if (pool == null) return;
 
   let pendingId = pool.pendingCTOApplicationId;
@@ -134,8 +147,6 @@ export function handleCTORejected(event: CTORejected): void {
 }
 
 export function handleAfterSwap(call: AfterSwapCall): void {
-  // Same rationale as SparkHookV4.handleAfterSwap: recompute the poolId by
-  // re-encoding the raw decoded `key` tuple straight out of calldata.
   let keyValue = call.inputValues[1].value;
   let encodedKey = ethereum.encode(keyValue);
   if (!encodedKey) return;

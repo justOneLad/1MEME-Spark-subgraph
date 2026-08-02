@@ -44,6 +44,19 @@
     {"indexed": true, "name": "to", "type": "address"},
     {"indexed": false, "name": "amount", "type": "uint256"}
   ]},
+  {"type": "event", "name": "InstantBuySkipped", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": false, "name": "refundedWei", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "RoutesSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "quoteToken", "type": "address"},
+    {"indexed": false, "name": "count", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "RouteSucceeded", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "quoteToken", "type": "address"},
+    {"indexed": true, "name": "routeIndex", "type": "uint256"},
+    {"indexed": false, "name": "amountOut", "type": "uint256"}
+  ]},
   {"type": "function", "name": "VANITY_SUFFIX", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint16"}]},
   {"type": "function", "name": "TOTAL_SUPPLY", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
   {"type": "function", "name": "weth", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},

@@ -1,0 +1,72 @@
+[
+  {"type": "event", "name": "TokenLaunched", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "creator", "type": "address"},
+    {"indexed": true, "name": "positionManager", "type": "address"},
+    {"indexed": false, "name": "quoteToken", "type": "address"},
+    {"indexed": false, "name": "feeWallet", "type": "address"},
+    {"indexed": false, "name": "hook", "type": "address"},
+    {"indexed": false, "name": "poolId", "type": "bytes32"},
+    {"indexed": false, "name": "tokenId", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "DexAdded", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "positionManager", "type": "address"},
+    {"indexed": false, "name": "protocol", "type": "uint8"},
+    {"indexed": false, "name": "singleton", "type": "address"},
+    {"indexed": false, "name": "poolLogic", "type": "address"},
+    {"indexed": false, "name": "permit2", "type": "address"},
+    {"indexed": false, "name": "hook", "type": "address"}
+  ]},
+  {"type": "event", "name": "DexDisabled", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "positionManager", "type": "address"}
+  ]},
+  {"type": "event", "name": "QuoteTokenAdded", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": false, "name": "marketCapRef", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "QuoteTokenDisabled", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"}
+  ]},
+  {"type": "event", "name": "LaunchFeeWalletSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "wallet", "type": "address"}
+  ]},
+  {"type": "event", "name": "BurnerSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "burner", "type": "address"}
+  ]},
+  {"type": "event", "name": "LaunchFeeSet", "anonymous": false, "inputs": [
+    {"indexed": false, "name": "fee", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "MarketCapRefSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": false, "name": "marketCapRef", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "ETHRescued", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "to", "type": "address"},
+    {"indexed": false, "name": "amount", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "ERC20Rescued", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": true, "name": "to", "type": "address"},
+    {"indexed": false, "name": "amount", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "InstantBuySkipped", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": false, "name": "refundedWei", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "RoutesSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "quoteToken", "type": "address"},
+    {"indexed": false, "name": "count", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "RouteSucceeded", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "quoteToken", "type": "address"},
+    {"indexed": true, "name": "routeIndex", "type": "uint256"},
+    {"indexed": false, "name": "amountOut", "type": "uint256"}
+  ]},
+  {"type": "function", "name": "owner", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "weth", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "tokenImpl", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "locker", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "launchFeeWallet", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "burner", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "launchFee", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]}
+]
