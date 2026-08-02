@@ -136,12 +136,27 @@ export function handleLaunchFeeSet(event: LaunchFeeSet): void {
 }
 
 export function handleMarketCapRefSet(event: MarketCapRefSet): void {
+  let launcher = getOrCreateLauncher(event.address, event);
+
   let quoteToken = QuoteToken.load(event.params.token);
-  if (quoteToken == null) return;
+  if (quoteToken == null) {
+    // setMarketCapRef requires quoteTokens[token].enabled on-chain, so this quote token is
+    // definitely registered even though we haven't seen a QuoteTokenAdded for it (e.g. native
+    // BNB, whose registration never emits one — see getOrCreateQuoteToken above).
+    quoteToken = new QuoteToken(event.params.token);
+    quoteToken.launcher = launcher.id;
+    quoteToken.wethPairFee = 0;
+    quoteToken.enabled = true;
+    quoteToken.routeCount = ZERO_BI;
+    quoteToken.addedAtBlock = event.block.number;
+    quoteToken.addedAtTimestamp = event.block.timestamp;
+  }
   quoteToken.marketCapRef = event.params.marketCapRef;
   quoteToken.updatedAtBlock = event.block.number;
   quoteToken.updatedAtTimestamp = event.block.timestamp;
   quoteToken.save();
+
+  launcher.save();
 }
 
 function getOrCreateQuoteToken(address: Address, launcherId: Bytes, event: ethereum.Event): QuoteToken {
@@ -261,12 +276,31 @@ export function handleInstantBuySkipped(event: InstantBuySkipped): void {
 }
 
 export function handleRoutesSet(event: RoutesSet): void {
+  let launcher = getOrCreateLauncher(event.address, event);
+
   let quoteToken = QuoteToken.load(event.params.quoteToken);
-  if (quoteToken == null) return;
+  if (quoteToken == null) {
+    // Unlike setMarketCapRef, setRoutes has no on-chain requirement that the quote token
+    // already be registered via addQuoteToken, so create a placeholder if routes are
+    // configured ahead of that. enabled defaults to false here (unlike handleMarketCapRefSet
+    // above) since nothing confirms this token is actually enabled yet — a later
+    // QuoteTokenAdded will correct it.
+    quoteToken = new QuoteToken(event.params.quoteToken);
+    quoteToken.launcher = launcher.id;
+    quoteToken.marketCapRef = ZERO_BI;
+    quoteToken.wethPairFee = 0;
+    quoteToken.enabled = false;
+    quoteToken.addedAtBlock = event.block.number;
+    quoteToken.addedAtTimestamp = event.block.timestamp;
+    quoteToken.updatedAtBlock = event.block.number;
+    quoteToken.updatedAtTimestamp = event.block.timestamp;
+  }
   quoteToken.routeCount = event.params.count;
   quoteToken.routesUpdatedAtBlock = event.block.number;
   quoteToken.routesUpdatedAtTimestamp = event.block.timestamp;
   quoteToken.save();
+
+  launcher.save();
 }
 
 export function handleRouteSucceeded(event: RouteSucceeded): void {
