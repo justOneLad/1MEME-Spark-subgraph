@@ -1,10 +1,24 @@
 # 1MEME-Spark-subgraph
 
 A subgraph indexing both active [1MEME Spark](https://github.com/justOneLad/1MEME-Spark)
-launcher families on BNB Smart Chain (chain ID `56`) — **SparkLauncher** (V1) and **SparkGo** —
-per [Deployment.md](https://github.com/justOneLad/1MEME-Spark/blob/main/Deployment.md). Both are
+launcher families — **SparkLauncher** (V1) and **SparkGo** — per
+[Deployment.md](https://github.com/justOneLad/1MEME-Spark/blob/main/Deployment.md). Both are
 upgradeable UUPS proxies and currency-general (arbitrary quote tokens, not just native BNB),
 sharing a multi-hop fallback routing engine (`common/SparkRouting.sol`) for instant-buy.
+
+Deployed on two chains, each as its own **separate subgraph** — a single subgraph deployment
+can't span multiple chains, so BSC and Ethereum are entirely independent manifests/deployments
+sharing the same `schema.graphql` and mapping code (`src/*.ts`), since the underlying contracts
+are identical across chains — only addresses, block numbers, and (for Ethereum) DEX availability
+differ:
+
+| Chain | Manifest | Studio slug |
+|---|---|---|
+| BSC (chain `56`) | `subgraph.yaml` | `1-spark` |
+| Ethereum mainnet (chain `1`) | `subgraph.ethereum.yaml` | `1-spark-eth` |
+
+The rest of this document describes the BSC deployment in detail; see "Ethereum mainnet
+deployment" below for what differs.
 
 ## What it indexes
 
@@ -214,6 +228,47 @@ at launch and permanently held by `SparkLocker`, so no ongoing LP position chang
 there (a third party could still mint a separate, unlocked position directly against the pool,
 but that's not part of Spark's own liquidity and isn't tracked here).
 
+## Ethereum mainnet deployment
+
+`subgraph.ethereum.yaml` indexes the same two launcher families, freshly deployed on Ethereum
+(chain `1`) — nothing pre-existed there to reuse, unlike BSC, so `SparkToken` and both
+`SparkLocker`s are fresh instances too. Every data source name matches its BSC counterpart
+exactly (`SparkLauncherV1`, `SparkLockerV1`, `SparkGoLauncher`, `SparkLockerGo`, `SparkGoHookV4`,
+`SparkGoBurner`, plus the `SparkTokenV1`/`SparkV1Pool`/`SparkTokenGo` templates), which is what
+lets `src/*.ts` be reused completely unmodified — `graph codegen`/`graph build` just regenerate
+identical bindings against different addresses.
+
+| Contract | Address | Start block |
+|---|---|---|
+| `SparkLauncher` (proxy) | `0x1010B4593376A5eEc045F9A706F615ed8417f541` | 25676015 |
+| `SparkLocker` (SparkLauncher's instance) | `0x2C238982945d5bE37dc6cFDFDD0c942458326C32` | 25676013 |
+| `SparkGoLauncher` (proxy) | `0x1655d6d3D2A6a29cf17bC151eDeA50A14A5DC918` | 25676033 |
+| `SparkLocker` (SparkGo's instance) | `0x541b04c5389E540bcc875EA14F699E539f96F76A` | 25676031 |
+| `SparkGoHookV4` | `0x49706386e0Fb729D24947a57f50097Ac578e80c4` | 25676036 |
+| `SparkGoBurner` | `0x125Fd8e0BC3cfbe913C65bB2Ba93d7eA9372982c` | 25676038 |
+| `OneCoinLocker` | `0xD7F53605d58057D8f96337dF606638c3e79B9867` | 25182671 |
+
+Start blocks were looked up via Blockscout (Etherscan V1's API is deprecated and V2 needs a key),
+since `Deployment.md` doesn't list them for this chain. `OneCoinLocker` here is a *different*
+deployment of the same contract from
+[timedbase/OneMEMELaunchpad-Subgraph](https://github.com/timedbase/OneMEMELaunchpad-Subgraph)'s
+own `subgraph.ethereum.yaml` (its ABI is byte-identical to the BSC one already used here) — again
+unrelated to Spark, included at the user's request for parity with the BSC deployment.
+
+**No `SparkGoHookInfinity` on Ethereum** — PancakeSwap Infinity has no Ethereum deployment, so
+SparkGo only registers Uniswap v4 here (`Deployment.md`). Consequently there's no
+`SparkGoHookInfinity` data source in `subgraph.ethereum.yaml`; every `PoolGo`/`SwapGo` row on
+this chain will always have `protocol: UNISWAP_V4`. Everything else — currency-general
+quote-token handling (Ethereum's USDT/USDC are 6-decimal, unlike BSC's 18-decimal versions, but
+nothing in the schema/mappings hardcodes decimals so this needs no code changes), routing
+tracking, CTO flow, burns — works identically to BSC.
+
+```bash
+npm run codegen:ethereum
+npm run build:ethereum
+npm run deploy:ethereum   # graph deploy 1-spark-eth subgraph.ethereum.yaml
+```
+
 ## Usage
 
 ```bash
@@ -223,4 +278,5 @@ npm run build
 ```
 
 To deploy, point `graph deploy`/`graph create` at your target (The Graph Studio, a self-hosted
-`graph-node`, or another indexer) with network `bsc`.
+`graph-node`, or another indexer). The BSC manifest (`subgraph.yaml`, the default) targets
+network `bsc`; `subgraph.ethereum.yaml` targets network `mainnet`.
