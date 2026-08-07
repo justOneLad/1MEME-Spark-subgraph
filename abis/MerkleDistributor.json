@@ -1,0 +1,39 @@
+[
+  {"type": "event", "name": "CampaignCreated", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "campaignId", "type": "uint256"},
+    {"indexed": true, "name": "creator", "type": "address"},
+    {"indexed": true, "name": "token", "type": "address"},
+    {"indexed": false, "name": "merkleRoot", "type": "bytes32"},
+    {"indexed": false, "name": "amount", "type": "uint256"},
+    {"indexed": false, "name": "deadline", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "Claimed", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "campaignId", "type": "uint256"},
+    {"indexed": false, "name": "index", "type": "uint256"},
+    {"indexed": true, "name": "account", "type": "address"},
+    {"indexed": false, "name": "amount", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "Swept", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "campaignId", "type": "uint256"},
+    {"indexed": true, "name": "to", "type": "address"},
+    {"indexed": false, "name": "amount", "type": "uint256"}
+  ]},
+  {"type": "event", "name": "FeeWalletSet", "anonymous": false, "inputs": [
+    {"indexed": true, "name": "wallet", "type": "address"}
+  ]},
+  {"type": "event", "name": "CampaignFeeSet", "anonymous": false, "inputs": [
+    {"indexed": false, "name": "fee", "type": "uint256"}
+  ]},
+  {"type": "function", "name": "owner", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "feeWallet", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+  {"type": "function", "name": "campaignFee", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "campaignCount", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+  {"type": "function", "name": "campaigns", "stateMutability": "view", "inputs": [{"name": "", "type": "uint256"}], "outputs": [
+    {"name": "creator", "type": "address"},
+    {"name": "token", "type": "address"},
+    {"name": "merkleRoot", "type": "bytes32"},
+    {"name": "deadline", "type": "uint256"},
+    {"name": "remaining", "type": "uint256"},
+    {"name": "swept", "type": "bool"}
+  ]}
+]

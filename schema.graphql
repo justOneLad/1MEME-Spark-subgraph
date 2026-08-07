@@ -610,6 +610,72 @@ type TokenTransferV1 @entity(immutable: true) {
   txHash: Bytes!
 }
 
+# ─── MerkleDistributor ───────────────────────────────────────────────────────
+# Independent, protocol-agnostic claim-based distributor (distributor/MerkleDistributor.sol) —
+# no relation to any Spark launcher, same "unrelated standalone data source" treatment as
+# OneCoinLocker below. Deployed on both BSC and Ethereum (different addresses, same contract).
+# One contract, many campaigns: any caller opens a campaign per token (or native currency)
+# with a Merkle root committing to every (index, account, amount) allocation and funds it in
+# the same transaction; each recipient (or anyone claiming on their behalf — funds always go
+# to the committed `account`, never to the caller) submits a proof to claim. A campaign's own
+# `creator` can sweep its unclaimed remainder after its deadline.
+
+"""
+MerkleDistributor — one row per deployed distributor contract (a singleton per chain in
+practice, but the schema does not assume that).
+"""
+type MerkleDistributor @entity(immutable: false) {
+  id: Bytes! # contract address
+  owner: Bytes!
+  feeWallet: Bytes!
+  campaignFee: BigInt! # flat native fee charged on every createCampaign, regardless of token
+  campaignCount: BigInt!
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  updatedAtBlock: BigInt!
+  updatedAtTimestamp: BigInt!
+  campaigns: [Campaign!]! @derivedFrom(field: "distributor")
+}
+
+"""
+MerkleDistributor.createCampaign — one row per campaign. id is the distributor address plus
+the on-chain campaignId (which is only unique per distributor instance, not globally).
+"""
+type Campaign @entity(immutable: false) {
+  id: Bytes! # distributor address + campaignId
+  distributor: MerkleDistributor!
+  campaignId: BigInt!
+  creator: Bytes!
+  token: Bytes! # address(0) = native currency
+  merkleRoot: Bytes!
+  totalAmount: BigInt! # originally funded amount, from CampaignCreated
+  remaining: BigInt! # decremented on each Claimed, zeroed on Swept
+  deadline: BigInt!
+  swept: Boolean!
+  sweptTo: Bytes
+  sweptAmount: BigInt
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  createdAtTx: Bytes!
+  claimCount: BigInt!
+  claims: [Claim!]! @derivedFrom(field: "campaign")
+}
+
+"""
+MerkleDistributor.claim — one row per successful claim.
+"""
+type Claim @entity(immutable: true) {
+  id: Bytes! # tx hash - log index
+  campaign: Campaign!
+  claimIndex: BigInt! # the Merkle leaf's own index, not a claim sequence number
+  account: Bytes! # the committed recipient — always where funds go, regardless of caller
+  caller: Bytes! # tx.from — may differ from account, since anyone can claim on someone's behalf
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+}
+
 # ─── OneCoinLocker (BSC) ─────────────────────────────────────────────────────
 # A general-purpose token/LP locker on BSC, unrelated to 1MEME Spark itself —
 # ported from timedbase/OneMEMELaunchpad-Subgraph

@@ -12,8 +12,10 @@ description: >-
   SparkHookInfinity/SparkBurner (superseded, cut over per Deployment.md) are
   intentionally not indexed. See
   https://github.com/justOneLad/1MEME-Spark/blob/main/Deployment.md. Also
-  includes OneCoinLocker, a general-purpose BSC token/LP locker unrelated to
-  Spark, ported from timedbase/OneMEMELaunchpad-Subgraph.
+  includes MerkleDistributor, a protocol-agnostic claim-based distributor
+  unrelated to any Spark launcher, and OneCoinLocker, a general-purpose BSC
+  token/LP locker unrelated to Spark, ported from
+  timedbase/OneMEMELaunchpad-Subgraph.
 repository: https://github.com/justOneLad/1MEME-Spark
 schema:
   file: ./schema.graphql
@@ -58,6 +60,40 @@ dataSources:
         - event: FeesCollected(indexed address,uint256)
           handler: handleFeesCollected
       file: ./src/onecoin-locker.ts
+  - kind: ethereum
+    name: MerkleDistributor
+    network: bsc
+    source:
+      address: "0x20ED1b487dd2A172D5ba0ED33562370142Cc338b"
+      abi: MerkleDistributor
+      # Deployment.md doesn't list a block for this contract, and BSC isn't covered by our
+      # Etherscan API key's plan (free tier) or by public RPCs (no archive access). Estimated
+      # by correlating this deploy's UTC timestamp against the Ethereum MerkleDistributor's
+      # confirmed block (25700654), then padded back ~13k blocks (~11 hours) for safety.
+      startBlock: 114470000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - MerkleDistributor
+        - Campaign
+        - Claim
+      abis:
+        - name: MerkleDistributor
+          file: ./abis/MerkleDistributor.json
+      eventHandlers:
+        - event: CampaignCreated(indexed uint256,indexed address,indexed address,bytes32,uint256,uint256)
+          handler: handleCampaignCreated
+        - event: Claimed(indexed uint256,uint256,indexed address,uint256)
+          handler: handleClaimed
+        - event: Swept(indexed uint256,indexed address,uint256)
+          handler: handleSwept
+        - event: FeeWalletSet(indexed address)
+          handler: handleFeeWalletSet
+        - event: CampaignFeeSet(uint256)
+          handler: handleCampaignFeeSet
+      file: ./src/merkle-distributor.ts
   - kind: ethereum
     name: SparkLauncherV1
     network: bsc

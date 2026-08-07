@@ -139,15 +139,41 @@ Per `Deployment.md`'s "Superseded / abandoned addresses" section, none of these 
 - Two earlier abandoned SparkLauncher (V1) broadcast attempts (`0x35E7...`, `0xaBF5...`, plus
   their paired lockers/token impls) — 0 real launches.
 
+### MerkleDistributor (unrelated to any Spark launcher)
+
+Per `Deployment.md`'s "Distributors" section: `distributor/MerkleDistributor.sol`, a standalone,
+protocol-agnostic, UUPS-upgradeable claim-based distributor — anyone can open a campaign against
+a token (or native currency) with a Merkle root committing to `(index, account, amount)`
+allocations, funding it in the same transaction; each recipient (or anyone claiming on their
+behalf — funds always go to the committed `account`) submits a proof to claim, and the campaign's
+own `creator` can sweep any unclaimed remainder after its deadline. Live on both chains as
+separate deployments of the same contract:
+
+| Chain | Proxy address | Start block |
+|---|---|---|
+| BSC | `0x20ED1b487dd2A172D5ba0ED33562370142Cc338b` | 114470000 (estimated, see below) |
+| Ethereum | `0xcB3ccF9f74c08A70b2B1bf7c111391d158D18B1c` | 25700654 (confirmed via Etherscan) |
+
+The Ethereum block came from Etherscan's `getcontractcreation` API. `Deployment.md` doesn't list
+block numbers for this contract on either chain, and BSC isn't covered by the available
+Etherscan API key's plan, and public BSC RPCs refuse archive calls (`eth_getCode`/`eth_getLogs`
+over historical ranges) without a paid key — so the BSC start block is an estimate: the
+Ethereum deploy's UTC timestamp correlated against BSC block headers (which don't need archive
+state, unlike `eth_getCode`), then padded back further for safety. Worth tightening if you ever
+get archive RPC access.
+
 ### OneCoinLocker (unrelated to Spark)
 
-Also included, at the user's request: `OneCoinLocker` (`0x6C6e9740753d9F6C1E5D61C8bc0f34E37590f6C5`,
-BSC, `startBlock: 100627321`) — a general-purpose token/LP locker that has nothing to do with
-1MEME Spark. Its ABI, entities (`Locker`, `Lock`, `LockWithdrawal`, `LockTransfer`,
-`LockActivity`) and mapping (`src/onecoin-locker.ts`) are ported from
+Also included, at the user's request: `OneCoinLocker` — a general-purpose token/LP locker that
+has nothing to do with 1MEME Spark, live on both chains as separate deployments (BSC
+`0x6C6e9740753d9F6C1E5D61C8bc0f34E37590f6C5` at `startBlock: 100627321`; Ethereum
+`0xD7F53605d58057D8f96337dF606638c3e79B9867` at `startBlock: 25182671`). Its ABI, entities
+(`Locker`, `Lock`, `LockWithdrawal`, `LockTransfer`, `LockActivity`) and mapping
+(`src/onecoin-locker.ts`) are ported from
 [timedbase/OneMEMELaunchpad-Subgraph](https://github.com/timedbase/OneMEMELaunchpad-Subgraph),
-which uses this same contract as a standalone locking utility outside its own launch flow. It's a
-fully independent data source — no entity here links to any Spark entity above.
+which uses this same contract as a standalone locking utility outside its own launch flow (the
+Ethereum address/block came from that repo's own `subgraph.ethereum.yaml`). It's a fully
+independent data source — no entity here links to any Spark entity above.
 
 ## Entities
 
@@ -190,6 +216,15 @@ fully independent data source — no entity here links to any Spark entity above
 - `LockerPositionV1`, `LockerFeeClaimV1` — the permanent LP-NFT record in SparkLauncher's
   separate `SparkLocker` instance and its fee claims
 - `TokenHolderV1`, `TokenTransferV1` — per-token balances and transfer log (see caveat below)
+
+### MerkleDistributor (unrelated to Spark; separate deployment per chain)
+
+- `MerkleDistributor` — one row per deployed distributor contract, with `owner`/`feeWallet`/
+  `campaignFee` config
+- `Campaign` — one per `createCampaign` call, tracking `remaining` balance, `deadline`, and
+  sweep status
+- `Claim` — one per successful `claim`, capturing both the committed `account` (where funds go)
+  and the `caller` (`tx.from`, since anyone can claim on someone else's behalf)
 
 ### Shared across both families
 

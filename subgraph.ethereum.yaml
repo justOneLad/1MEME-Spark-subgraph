@@ -10,9 +10,11 @@ description: >-
   SparkGoHookInfinity data source. Also dynamically templated SparkToken
   clones created by each launch on either family. See
   https://github.com/justOneLad/1MEME-Spark/blob/main/Deployment.md. Also
-  includes OneCoinLocker, a general-purpose token/LP locker unrelated to
-  Spark, ported from timedbase/OneMEMELaunchpad-Subgraph's own Ethereum
-  deployment of the same contract.
+  includes MerkleDistributor, a protocol-agnostic claim-based distributor
+  unrelated to any Spark launcher, and OneCoinLocker, a general-purpose
+  token/LP locker unrelated to Spark, ported from
+  timedbase/OneMEMELaunchpad-Subgraph's own Ethereum deployment of the same
+  contract.
 repository: https://github.com/justOneLad/1MEME-Spark
 schema:
   file: ./schema.graphql
@@ -57,6 +59,36 @@ dataSources:
         - event: FeesCollected(indexed address,uint256)
           handler: handleFeesCollected
       file: ./src/onecoin-locker.ts
+  - kind: ethereum
+    name: MerkleDistributor
+    network: mainnet
+    source:
+      address: "0xcB3ccF9f74c08A70b2B1bf7c111391d158D18B1c"
+      abi: MerkleDistributor
+      startBlock: 25700654
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - MerkleDistributor
+        - Campaign
+        - Claim
+      abis:
+        - name: MerkleDistributor
+          file: ./abis/MerkleDistributor.json
+      eventHandlers:
+        - event: CampaignCreated(indexed uint256,indexed address,indexed address,bytes32,uint256,uint256)
+          handler: handleCampaignCreated
+        - event: Claimed(indexed uint256,uint256,indexed address,uint256)
+          handler: handleClaimed
+        - event: Swept(indexed uint256,indexed address,uint256)
+          handler: handleSwept
+        - event: FeeWalletSet(indexed address)
+          handler: handleFeeWalletSet
+        - event: CampaignFeeSet(uint256)
+          handler: handleCampaignFeeSet
+      file: ./src/merkle-distributor.ts
   - kind: ethereum
     name: SparkLauncherV1
     network: mainnet
