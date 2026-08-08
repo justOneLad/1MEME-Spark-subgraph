@@ -288,6 +288,47 @@ dataSources:
           handler: handleAfterSwap
       file: ./src/hook-v4-go.ts
   - kind: ethereum
+    # Non-upgradeable hook redeployed for the antibot rework (30-min time window instead of
+    # 20,000-block window, hook no longer enforces a buy-size cap). SparkGoLauncher's proxy is
+    # unchanged; existing pools already registered on the original SparkGoHookV4 above keep
+    # trading through it (tokenHook[token] snapshots the hook at launch time), so that data
+    # source stays live rather than being replaced — only new launches from here on register
+    # on this one.
+    name: SparkGoHookV4Gen2
+    network: mainnet
+    source:
+      address: "0x331CC61E71249Ba26E591A2b2ee563F588d980C4"
+      abi: SparkGoHookV4
+      startBlock: 25710828
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - PoolGo
+        - HookFeeClaimGo
+        - CTOApplication
+        - SparkStats
+        - SwapGo
+      abis:
+        - name: SparkGoHookV4
+          file: ./abis/SparkGoHookV4.json
+      eventHandlers:
+        - event: PoolRegistered(indexed bytes32,indexed address,indexed address)
+          handler: handlePoolRegistered
+        - event: FeesClaimed(indexed bytes32,uint256)
+          handler: handleFeesClaimed
+        - event: CTOApplied(indexed bytes32,indexed address,address,uint256)
+          handler: handleCTOApplied
+        - event: CTOApproved(indexed bytes32,address)
+          handler: handleCTOApproved
+        - event: CTORejected(indexed bytes32,indexed address)
+          handler: handleCTORejected
+      callHandlers:
+        - function: afterSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),int256,bytes)
+          handler: handleAfterSwap
+      file: ./src/hook-v4-go.ts
+  - kind: ethereum
     name: SparkGoBurner
     network: mainnet
     source:

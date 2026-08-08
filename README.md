@@ -33,13 +33,35 @@ SparkLauncher below.
 | `SparkGoLauncher` (proxy) | `0xC0d33846D04F5Ce0a34AEecE9b6462433EBC8f7C` | 113583462 |
 | `SparkLocker` (SparkGo's instance) | `0x01245e814bbc3A1DC3b24924FB0E4E3b6863105B` | 113583466 |
 | `SparkGoHookV4` | `0xdF3f8b41a55fb8737D653d6bc7467095e48700c4` | 113583474 |
+| `SparkGoHookV4Gen2` | `0x5bA7D23C085418fd44B971726e60d4864c8400c4` | 114745000 (estimated) |
 | `SparkGoHookInfinity` | `0x8E273c882267f034ACE21dA677dBF0c0eB305B82` | 113583482 |
+| `SparkGoHookInfinityGen2` | `0x05AAb89F069DFAe5723DaF7c8dC21995f37729Dc` | 114745000 (estimated) |
 | `SparkGoBurner` | `0xC99fD815f5C0a5dCf2B6cA36A38AbbB5cF4e4c10` | 113583491 |
 
 `SparkLocker` here predates SparkGo (it was originally paired with the now-superseded
 `SparkLauncherV2`) but is reused, repointed via `setLauncher`. Its `startBlock` is set to that
 repoint transaction, not the locker's original deploy block, so the 2 real tokens launched
 through the superseded `SparkLauncherV2` are cleanly excluded — see "Superseded contracts" below.
+
+**Hook rotation (`Gen2`).** Hooks are plain, non-upgradeable contracts by design (a hook executes
+on every swap of every pool already using it, so upgradeability there would let the owner
+rewrite the rules of pools with live user funds retroactively — only the launcher itself is a
+proxy). An antibot rework (3%-of-supply max-wallet for a 30-minute window, timestamp-based,
+replacing the old 2%/20,000-block version; the hook itself dropped its own redundant buy-size
+cap, keeping only same-block re-entry protection) required fresh `SparkGoHookV4`/
+`SparkGoHookInfinity` deploys. `SparkGoLauncher`'s proxy address is unchanged — it just got a new
+`addDex` call repointing `dexes[positionManager].hook` to the new address for *future* launches
+(`tokenHook[token]` snapshots the hook at launch time, so already-launched tokens keep using
+their original hook). Both hook generations are indexed side by side, unlike the earlier
+`SparkLauncherV2` cutover: the original hooks still have real, ongoing swap activity on
+already-launched pools (confirmed by querying this subgraph's own deployed data before deciding),
+so dropping them would silently stop tracking live trading rather than just excluding stale
+history. `PoolGo`/`SwapGo`/etc. work identically regardless of which hook generation registered
+them — `PoolGo.hook` records which one.
+
+`SparkGoHookV4Gen2`'s BSC block is an estimate for the same reason as `MerkleDistributor`'s
+(Etherscan's plan doesn't cover BSC, public RPCs refuse archive calls) — correlated against the
+confirmed Ethereum `SparkGoHookV4Gen2` block via UTC timestamp, then padded back further.
 
 **Buy/sell activity** is captured via `callHandlers` on `SparkGoHookV4.afterSwap` /
 `SparkGoHookInfinity.afterSwap`, not from an event — neither hook emits one per swap. This works
@@ -280,8 +302,14 @@ identical bindings against different addresses.
 | `SparkGoLauncher` (proxy) | `0x1655d6d3D2A6a29cf17bC151eDeA50A14A5DC918` | 25676033 |
 | `SparkLocker` (SparkGo's instance) | `0x541b04c5389E540bcc875EA14F699E539f96F76A` | 25676031 |
 | `SparkGoHookV4` | `0x49706386e0Fb729D24947a57f50097Ac578e80c4` | 25676036 |
+| `SparkGoHookV4Gen2` | `0x331CC61E71249Ba26E591A2b2ee563F588d980C4` | 25710828 |
 | `SparkGoBurner` | `0x125Fd8e0BC3cfbe913C65bB2Ba93d7eA9372982c` | 25676038 |
 | `OneCoinLocker` | `0xD7F53605d58057D8f96337dF606638c3e79B9867` | 25182671 |
+| `MerkleDistributor` | `0xcB3ccF9f74c08A70b2B1bf7c111391d158D18B1c` | 25700654 |
+
+No `SparkGoHookInfinityGen2` here either, for the same reason there's no original
+`SparkGoHookInfinity` — see "No `SparkGoHookInfinity` on Ethereum" below. See "Hook rotation
+(`Gen2`)" in the BSC section above for why both hook generations stay indexed side by side.
 
 Start blocks were looked up via Blockscout (Etherscan V1's API is deprecated and V2 needs a key),
 since `Deployment.md` doesn't list them for this chain. `OneCoinLocker` here is a *different*

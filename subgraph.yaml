@@ -297,6 +297,50 @@ dataSources:
           handler: handleAfterSwap
       file: ./src/hook-v4-go.ts
   - kind: ethereum
+    # Non-upgradeable hook redeployed for the antibot rework (30-min time window instead of
+    # 20,000-block window, hook no longer enforces a buy-size cap). SparkGoLauncher's proxy is
+    # unchanged; existing pools already registered on the original SparkGoHookV4 above keep
+    # trading through it (tokenHook[token] snapshots the hook at launch time) and still have
+    # real ongoing swap activity, so that data source stays live rather than being replaced —
+    # only new launches from here on register on this one.
+    name: SparkGoHookV4Gen2
+    network: bsc
+    source:
+      address: "0x5bA7D23C085418fd44B971726e60d4864c8400c4"
+      abi: SparkGoHookV4
+      # No block given in Deployment.md; estimated the same way as MerkleDistributor's BSC
+      # block — correlating this deploy's UTC timestamp against the confirmed Ethereum
+      # SparkGoHookV4Gen2 block (25710828), padded back for safety.
+      startBlock: 114745000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - PoolGo
+        - HookFeeClaimGo
+        - CTOApplication
+        - SparkStats
+        - SwapGo
+      abis:
+        - name: SparkGoHookV4
+          file: ./abis/SparkGoHookV4.json
+      eventHandlers:
+        - event: PoolRegistered(indexed bytes32,indexed address,indexed address)
+          handler: handlePoolRegistered
+        - event: FeesClaimed(indexed bytes32,uint256)
+          handler: handleFeesClaimed
+        - event: CTOApplied(indexed bytes32,indexed address,address,uint256)
+          handler: handleCTOApplied
+        - event: CTOApproved(indexed bytes32,address)
+          handler: handleCTOApproved
+        - event: CTORejected(indexed bytes32,indexed address)
+          handler: handleCTORejected
+      callHandlers:
+        - function: afterSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),int256,bytes)
+          handler: handleAfterSwap
+      file: ./src/hook-v4-go.ts
+  - kind: ethereum
     name: SparkGoHookInfinity
     network: bsc
     source:
@@ -329,6 +373,42 @@ dataSources:
           handler: handleCTORejected
       # Same rationale as SparkGoHookV4 above: afterSwap is invoked by the
       # PancakeSwap Infinity CLPoolManager on every swap against a Spark pool.
+      callHandlers:
+        - function: afterSwap(address,(address,address,address,address,uint24,bytes32),(bool,int256,uint160),int256,bytes)
+          handler: handleAfterSwap
+      file: ./src/hook-infinity-go.ts
+  - kind: ethereum
+    # Same rationale as SparkGoHookV4Gen2 above.
+    name: SparkGoHookInfinityGen2
+    network: bsc
+    source:
+      address: "0x05AAb89F069DFAe5723DaF7c8dC21995f37729Dc"
+      abi: SparkGoHookInfinity
+      startBlock: 114745000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - PoolGo
+        - HookFeeClaimGo
+        - CTOApplication
+        - SparkStats
+        - SwapGo
+      abis:
+        - name: SparkGoHookInfinity
+          file: ./abis/SparkGoHookInfinity.json
+      eventHandlers:
+        - event: PoolRegistered(indexed bytes32,indexed address,indexed address)
+          handler: handlePoolRegistered
+        - event: FeesClaimed(indexed bytes32,uint256)
+          handler: handleFeesClaimed
+        - event: CTOApplied(indexed bytes32,indexed address,address,uint256)
+          handler: handleCTOApplied
+        - event: CTOApproved(indexed bytes32,address)
+          handler: handleCTOApproved
+        - event: CTORejected(indexed bytes32,indexed address)
+          handler: handleCTORejected
       callHandlers:
         - function: afterSwap(address,(address,address,address,address,uint24,bytes32),(bool,int256,uint160),int256,bytes)
           handler: handleAfterSwap
